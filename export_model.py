@@ -31,13 +31,13 @@ def main(unused_argv):
     input_image = tf.placeholder(tf.float32, [None, 32, 32, 18], name=_INPUT_NAME)
 
     with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
-      logits, _ = mobilenet_v2.mobilenet(
+      _, end_points = mobilenet_v2.mobilenet(
           input_image,
           is_training=False,
           depth_multiplier=FLAGS.depth_multiplier,
           num_classes=FLAGS.num_classes)
 
-    prediction = tf.argmax(logits, 1)
+    prediction = tf.argmax(end_points['Predictions'], 1)
     prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)
     prediction = tf.identity(prediction, name=_OUTPUT_NAME)
 

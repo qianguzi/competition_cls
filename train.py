@@ -10,7 +10,7 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
-flags.DEFINE_integer('batch_size', 64, 'Batch size')
+flags.DEFINE_integer('batch_size', 32, 'Batch size')
 flags.DEFINE_integer('num_classes', 18, 'Number of classes to distinguish')
 flags.DEFINE_integer('number_of_steps', None,
                      'Number of training steps to perform before stopping')
@@ -22,10 +22,10 @@ flags.DEFINE_string('fine_tune_checkpoint', '',
 flags.DEFINE_string('checkpoint_dir', './train_log',
                     'Directory for writing training checkpoints and logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord/train-*', 'Location of dataset')
-flags.DEFINE_integer('log_every_n_steps', 100, 'Number of steps per log')
-flags.DEFINE_integer('save_summaries_secs', 100,
+flags.DEFINE_integer('log_every_n_steps', 10, 'Number of steps per log')
+flags.DEFINE_integer('save_summaries_secs', 60,
                      'How often to save summaries, secs')
-flags.DEFINE_integer('save_interval_secs', 100,
+flags.DEFINE_integer('save_interval_secs', 300,
                      'How often to save checkpoints, secs')
 
 FLAGS = flags.FLAGS
@@ -40,7 +40,7 @@ def get_learning_rate():
     # rate since we are farther along on training.
     return 1e-4
   else:
-    return 0.045
+    return 0.01
 
 
 def get_quant_delay():
@@ -81,27 +81,51 @@ def build_model():
     # for better model accuracy.
     if FLAGS.quantize:
       tf.contrib.quantize.create_training_graph(quant_delay=get_quant_delay())
+    
+    # Gather update_ops
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    # Gather initial summaries.
+    summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
-    total_loss = tf.losses.get_total_loss(name='total_loss')
     # Configure the learning rate using an exponential decay.
     num_epochs_per_decay = 2.5
     decay_steps = int(_DATASET_SIZE / FLAGS.batch_size * num_epochs_per_decay)
-
+    global_step = tf.train.get_or_create_global_step()
     learning_rate = tf.train.exponential_decay(
         get_learning_rate(),
-        tf.train.get_or_create_global_step(),
+        global_step,
         decay_steps,
         _LEARNING_RATE_DECAY_FACTOR,
         staircase=True)
     opt = tf.train.GradientDescentOptimizer(learning_rate)
+    summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
-    train_tensor = slim.learning.create_train_op(
-        total_loss,
-        optimizer=opt)
+    total_losses = []
+    softmax_cross_entropy_loss = tf.get_collection(tf.GraphKeys.LOSSES)
+    softmax_cross_entropy_loss = tf.add_n(softmax_cross_entropy_loss,
+                                          name='softmax_cross_entropy_loss')
+    summaries.add(tf.summary.scalar('losses/softmax_cross_entropy_loss',
+                                    softmax_cross_entropy_loss))
+    total_losses.append(softmax_cross_entropy_loss)
+    regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    regularization_loss = tf.add_n(regularization_loss, name='regularization_loss')
+    summaries.add(tf.summary.scalar('losses/regularization_loss', regularization_loss))
+    total_losses.append(regularization_loss)
 
-  slim.summaries.add_scalar_summary(total_loss, 'total_loss', 'losses')
-  slim.summaries.add_scalar_summary(learning_rate, 'learning_rate', 'training')
-  return g, train_tensor
+    total_loss = tf.add_n(total_losses, name='total_loss')
+    grads_and_vars = opt.compute_gradients(total_loss)
+
+    total_loss = tf.check_numerics(total_loss, 'LossTensor is inf or nan.')
+    summaries.add(tf.summary.scalar('losses/total_loss', total_loss))
+    grad_updates = opt.apply_gradients(grads_and_vars, global_step=global_step)
+    update_ops.append(grad_updates)
+    update_op = tf.group(*update_ops, name='update_barrier')
+    with tf.control_dependencies([update_op]):
+      train_tensor = tf.identity(total_loss, name='train_op')
+
+  # Merge all summaries together.
+  summary_op = tf.summary.merge(list(summaries))
+  return g, train_tensor, summary_op
 
 
 def get_checkpoint_init_fn():
@@ -131,7 +155,8 @@ def get_checkpoint_init_fn():
 
 def train_model():
   """Trains mobilenet_v1."""
-  g, train_tensor = build_model()
+  tf.logging.set_verbosity(tf.logging.INFO)
+  g, train_tensor, summary_op = build_model()
   with g.as_default():
     slim.learning.train(
         train_tensor,
@@ -144,6 +169,7 @@ def train_model():
         save_summaries_secs=FLAGS.save_summaries_secs,
         save_interval_secs=FLAGS.save_interval_secs,
         init_fn=get_checkpoint_init_fn(),
+        summary_op=summary_op,
         global_step=tf.train.get_global_step())
 
 

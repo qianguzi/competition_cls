@@ -58,7 +58,7 @@ def build_model():
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
     with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
-      logits, _ = mobilenet_v2.mobilenet(
+      _, end_points = mobilenet_v2.mobilenet(
           inputs,
           is_training=False,
           depth_multiplier=FLAGS.depth_multiplier,
@@ -67,7 +67,7 @@ def build_model():
     if FLAGS.quantize:
       tf.contrib.quantize.create_eval_graph()
 
-    eval_ops = metrics(logits, labels)
+    eval_ops = metrics(end_points['Predictions'], labels)
 
   return g, eval_ops
 
