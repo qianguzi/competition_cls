@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[6]:
 
 
 import h5py
@@ -54,7 +54,6 @@ for i in range(17):
 s1=np.concatenate(s1)
 s2=np.concatenate(s2)
 print(s1.shape)'''
-print(s1_training.shape)
 s1 = s1_training[:20000,...]
 
 del s1_training, s2_training
@@ -67,13 +66,16 @@ for i in range(s1.shape[0]):
 
 '''
 # s1 processing
-for i in range(8):
-    if i % 2 != 0:
-        continue
+for i in range(0,4,2):
     locals()['s1_'+str(i)] =  np.sqrt(np.square(s1[:,:,:,i])+np.square(s1[:,:,:,i+1]))
     #振幅值取log
     locals()['s1_'+str(i)] = np.log10(locals()['s1_'+str(i)]+0.0000001)
     locals()['s1_'+str(i+1)] =  np.arctan2(s1[:,:,:,i+1],s1[:,:,:,i])
+s1_4 = np.log10(s1[:,:,:,4]+0.0000001)
+s1_5 = np.log10(s1[:,:,:,5]+0.0000001)
+s1_6 = np.sqrt(np.square(s1[:,:,:,6])+np.square(s1[:,:,:,7]))
+s1_6 = np.log10(s1_6+0.0000001)
+s1_7 = np.arctan2(s1[:,:,:,7],s1[:,:,:,6])
 
 s1_energy = np.zeros(s1.shape)
 for i in range(8):
@@ -88,6 +90,11 @@ for i in range(s1.shape[0]):
             s1_energy[i,:,:,j] = (s1_energy[i,:,:,j] - s1_energy[i,:,:,j].min()) / (s1_energy[i,:,:,j].max() - s1_energy[i,:,:,j].min())
         else:
             #相位归一化
+            if j == 5:
+                s1_energy[i,:,:,j] -= np.mean(s1_energy[i,:,:,j],axis=0)
+                s1_energy[i,:,:,j] /= np.std(s1_energy[i,:,:,j],axis=0)+0.0000001
+                s1_energy[i,:,:,j] = (s1_energy[i,:,:,j] - s1_energy[i,:,:,j].min()) / (s1_energy[i,:,:,j].max() - s1_energy[i,:,:,j].min())
+                continue
             s1_energy[i,:,:,j] = (s1_energy[i,:,:,j] + np.pi) / (2*np.pi)
 print(s1_energy[i,:,:,0].mean(),s1_energy[i,:,:,0].std(), s1_energy[i,:,:,0].max(), s1_energy[i,:,:,0].min())
 
