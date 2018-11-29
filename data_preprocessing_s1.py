@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import math
-from filters.lee import lee_filter
+#from filters.lee import lee_filter
 
 ### to change according to your machine
 base_dir = os.path.expanduser(r'E:\Competition\tianchi\lcz-master\dataset\\')
@@ -56,7 +56,7 @@ s2=np.concatenate(s2)
 print(s1.shape)'''
 print(s1_training.shape)
 s1 = s1_training[:20000,...]
-s2 = s2_training[:20000,...]
+
 del s1_training, s2_training
 # lee filter
 '''

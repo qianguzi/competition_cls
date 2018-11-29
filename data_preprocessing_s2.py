@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[6]:
 
 
 import h5py
@@ -54,9 +54,8 @@ for i in range(17):
 s1=np.concatenate(s1)
 s2=np.concatenate(s2)
 print(s1.shape)'''
-print(s1_training.shape)
-s1 = s1_training[:20000,...]
-s2 = s2_training[:20000,...]
+
+s2 = s2_training
 del s1_training, s2_training
 # lee filter
 '''
@@ -94,15 +93,23 @@ print(s1_energy[i,:,:,0].mean(),s1_energy[i,:,:,0].std(), s1_energy[i,:,:,0].max
 
 # s2 processing
 #取log, 归一化
+s2_preprc = np.zeros(s2.shape)
 for i in range(s2.shape[0]):
     for j in range(10):
-        s2[i,:,:,j] = np.log10(s2[i,:,:,j]+0.0000001)
-        s2[i,:,:,j] -= np.mean(s2[i,:,:,j],axis=0)
-        s2[i,:,:,j] /= np.std(s2[i,:,:,j],axis=0)+0.0000001
-        s2[i,:,:,j] = (s2[i,:,:,j] - s2[i,:,:,j].min()) / (s2[i,:,:,j].max() - s2[i,:,:,j].min())
+        s2_t = np.log10(s2[i,:,:,j]+0.0000001)
+        s2_t -= np.mean(s2_t,axis=0)
+        s2_t /= np.std(s2_t,axis=0)+0.0000001
+        s2_t = (s2_t - s2_t.min()) / (s2_t.max() - s2_t.min())
+        s2_preprc[i,:,:,j] = s2_t
 print(s2[i,:,:,0].mean(),s2[i,:,:,0].std(),s2[i,:,:,0].max(),s2[i,:,:,0].min())
 
 f = h5py.File('training_preprc_s2.h5','w')
 f.create_dataset('s2',data=s2)
 f.close()
+
+
+# In[ ]:
+
+
+
 
