@@ -1,7 +1,30 @@
 import os
-import h5py, glob
+import h5py
 import numpy as np
-import tensorflow as tf
+
+_DATASET_MEAN = [6.79034058e-05, 3.13958198e-05, 8.54824102e-05, -7.53851136e-05,
+                -1.61852048e+00, -1.02397158e+00, -3.99997315e-04, 1.44433013e-03,
+                 1.29802515e-01, 1.17745393e-01, 1.14519432e-01, 1.27774508e-01,
+                 1.70839563e-01, 1.92380020e-01, 1.85248741e-01, 2.06286210e-01,
+                 1.74647946e-01, 1.28752703e-01]
+_DATASET_STD = [0.20595731, 0.20523204, 0.48476867, 0.48547576, 0.49312326, 0.54128573,
+                0.25078281, 0.18858326, 0.0413942, 0.05197171, 0.07318039, 0.06928833,
+                0.07388366, 0.08290952, 0.08446056, 0.09017361, 0.09451134, 0.09073909]
+
+
+def h5_read(path):
+  fid = h5py.File(path,'r')
+  s1 = fid['sen1']
+  s2 = fid['sen2']
+  label = fid['label']
+  return s1, s2, label
+
+def img_data_preprocess(s1_data, s2_data):
+  img_data = data_zoom(s1_data, s2_data)
+  img_data[:,:,4:6] = np.log10(img_data[:,:,4:6])
+  img_data = data_norm(img_data, _DATASET_MEAN, _DATASET_STD)
+  img_data = np.reshape(img_data,[-1]).astype(np.float32)
+  return img_data
 
 
 def data_norm(s, s_mean, s_std):
@@ -26,6 +49,7 @@ def data_norm(s, s_mean, s_std):
   s_norm = np.stack(s_norm, -1)
   return s_norm
 
+
 def data_zoom(s1, s2):
   s1 = np.where(s1>10, 10, s1)
   s1 = np.where(s1<-10, -10, s1)
@@ -35,47 +59,6 @@ def data_zoom(s1, s2):
   s = np.concatenate([s1,s2], -1)
   return s
 
-
-def h5_read(path):
-  fid = h5py.File(path,'r')
-  s1 = fid['sen1']
-  s2 = fid['sen2']
-  label = fid['label']
-  return s1, s2, label
-
-def read_tfrecord(file_path, shuffle=True):
-  reader = tf.TFRecordReader()
-
-  file_path = glob.glob(file_path)
-  filename_queue = tf.train.string_input_producer(
-      file_path, shuffle=shuffle)
-
-  _, serialized_example = reader.read(filename_queue)
-
-  features = tf.parse_single_example(
-      serialized_example,
-      features={'data': tf.FixedLenFeature([32, 32, 18], tf.float32),
-                'label': tf.FixedLenFeature([], tf.int64),
-                'idx': tf.FixedLenFeature([], tf.int64)})
-  sample = {
-      'data': features['data'],
-      'label': features['label'],
-      'idx': features['idx']
-  }
-
-  return sample
-
-def get_batch(file_path, batch_size, is_training=True):
-  '''Get batch.'''
-  sample = read_tfrecord(file_path, shuffle=is_training)
-  capacity = 5 * batch_size
-
-  samples = tf.train.batch(sample,
-                           batch_size, 
-                           capacity=capacity,
-                           num_threads=4,
-                           allow_smaller_final_batch=not is_training)
-  return samples
 
 def _main(base_dir):
   path_training = os.path.join(base_dir, 'training.h5')

@@ -4,27 +4,13 @@ import math, h5py
 import numpy as np
 import tensorflow as tf
 
-import preprocess
+from dataset import preprocess, common
 
-FLAGS = tf.app.flags.FLAGS
+flags = tf.app.flags
 
-tf.app.flags.DEFINE_string('dataset_folder',
-                           '/home/data/lcz',
-                           'Folder containing dataset.')
+flags.DEFINE_string('dataset_folder', '/home/data/lcz', 'Folder containing dataset.')
 
-tf.app.flags.DEFINE_string(
-    'output_dir',
-    '/media/jun/data/lcz/tfrecord',
-    'Path to save converted SSTable of TensorFlow examples.')
-
-_DATASET_MEAN = [6.79034058e-05, 3.13958198e-05, 8.54824102e-05, -7.53851136e-05,
-                -1.61852048e+00, -1.02397158e+00, -3.99997315e-04, 1.44433013e-03,
-                 1.29802515e-01, 1.17745393e-01, 1.14519432e-01, 1.27774508e-01,
-                 1.70839563e-01, 1.92380020e-01, 1.85248741e-01, 2.06286210e-01,
-                 1.74647946e-01, 1.28752703e-01]
-_DATASET_STD = [0.20595731, 0.20523204, 0.48476867, 0.48547576, 0.49312326, 0.54128573,
-                0.25078281, 0.18858326, 0.0413942, 0.05197171, 0.07318039, 0.06928833,
-                0.07388366, 0.08290952, 0.08446056, 0.09017361, 0.09451134, 0.09073909]
+FLAGS = flags.FLAGS
 
 _NUM_CLASSES = 17
 _NUM_SHARDS = 4
@@ -44,7 +30,7 @@ def convert_dataset(dataset, s1, s2, labels, num):
   num_per_shard = int(math.ceil(num / float(_NUM_SHARDS)))
   for shard_id in range(_NUM_SHARDS):
     output_filename = os.path.join(
-        FLAGS.output_dir,
+        FLAGS.tfrecord_dir,
         '%s-%05d-of-%05d.tfrecord' % (dataset, shard_id, _NUM_SHARDS))
     writer = tf.python_io.TFRecordWriter(output_filename)
     start_idx = shard_id * num_per_shard
@@ -55,12 +41,9 @@ def convert_dataset(dataset, s1, s2, labels, num):
       sys.stdout.flush()
       s1_data = s1[idx]
       s2_data = s2[idx]
-      label = int(np.argmax(labels[idx])+1)
 
-      img_data = preprocess.data_zoom(s1_data, s2_data)
-      img_data[:,:,4:6] = np.log10(img_data[:,:,4:6])
-      img_data = preprocess.data_norm(img_data, _DATASET_MEAN, _DATASET_STD)
-      img_data = np.reshape(img_data,[-1]).astype(np.float32)
+      label = int(np.argmax(labels[idx])+1)
+      img_data = common.preprocess_fn(s1_data, s2_data)
 
       example = tf.train.Example(features=tf.train.Features(feature={
           'data': _float_feature(img_data),
@@ -80,7 +63,7 @@ def convert_dataset_balance(dataset, s1, s2, dataset_idx, per_class_num):
   num_per_shard = int(math.ceil(per_class_num / float(_NUM_SHARDS)))
   for shard_id in range(_NUM_SHARDS):
     output_filename = os.path.join(
-        FLAGS.output_dir,
+        FLAGS.tfrecord_dir,
         '%s-%05d-of-%05d.tfrecord' % (dataset, shard_id, _NUM_SHARDS))
     writer = tf.python_io.TFRecordWriter(output_filename)
     start_idx = shard_id * num_per_shard
@@ -105,10 +88,7 @@ def convert_dataset_balance(dataset, s1, s2, dataset_idx, per_class_num):
           s2_data = cv2.flip(s2_data, term-1)
 
         label = int(j+1)
-        img_data = preprocess.data_zoom(s1_data, s2_data)
-        img_data[:,:,4:6] = np.log10(img_data[:,:,4:6])
-        img_data = preprocess.data_norm(img_data, _DATASET_MEAN, _DATASET_STD)
-        img_data = np.reshape(img_data,[-1]).astype(np.float32)
+        img_data = common.preprocess_fn(s1_data, s2_data)
 
         example = tf.train.Example(features=tf.train.Features(feature={
             'data': _float_feature(img_data),
@@ -137,6 +117,7 @@ def main():
     else:
       dataset_idx.append(np.where(label_training[:,i])[0][:per_class_num])
   
+  tf.gfile.MakeDirs(FLAGS.tfrecord_dir)
   convert_dataset_balance('train', s1_training, s2_training, dataset_idx, per_class_num)
 
   convert_dataset('val', s1_validation, s2_validation, label_validation, num_val)

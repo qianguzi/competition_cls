@@ -4,7 +4,7 @@ from tensorflow.contrib import slim
 from tensorflow.python.tools import freeze_graph
 
 from mobilenet import mobilenet_v2
-from dataset import preprocess
+from dataset import common
 
 flags = tf.app.flags
 
@@ -13,8 +13,6 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-7829', 'Checkpoint path')
 flags.DEFINE_string('export_path', './result/model.pb',
                     'Path to output Tensorflow frozen graph.')
-flags.DEFINE_float('depth_multiplier', 1.5, 'Depth multiplier for mobilenet')
-flags.DEFINE_integer('num_classes', 18, 'Number of classes.')
 
 # Input name of the exported model.
 _INPUT_NAME = 'ImageTensor'
@@ -28,7 +26,7 @@ def main(unused_argv):
   tf.logging.info('Prepare to export model to: %s', FLAGS.export_path)
 
   with tf.Graph().as_default():
-    input_image = tf.placeholder(tf.float32, [None, 32, 32, 18], name=_INPUT_NAME)
+    input_image = tf.placeholder(tf.float32, [None, 32, 32, common.channel], name=_INPUT_NAME)
 
     with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
       _, end_points = mobilenet_v2.mobilenet(

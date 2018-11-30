@@ -1,7 +1,9 @@
+import os
 import tensorflow as tf
 
+from dataset import common
 from mobilenet import mobilenet_v2
-from dataset import preprocess
+from dataset.get_dataset import get_dataset
 
 slim = tf.contrib.slim
 
@@ -11,18 +13,15 @@ flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
 flags.DEFINE_integer('batch_size', 32, 'Batch size')
-flags.DEFINE_integer('num_classes', 18, 'Number of classes to distinguish')
 flags.DEFINE_integer('number_of_steps', None,
                      'Number of training steps to perform before stopping')
 flags.DEFINE_integer('image_size', 32, 'Input image resolution')
-flags.DEFINE_float('depth_multiplier', 1.5, 'Depth multiplier for mobilenet')
 flags.DEFINE_bool('quantize', False, 'Quantize training')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
-flags.DEFINE_string('checkpoint_dir', './train_log',
+flags.DEFINE_string('train_logdir', './train_log',
                     'Directory for writing training checkpoints and logs')
-flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord/train-*', 'Location of dataset')
-flags.DEFINE_integer('log_every_n_steps', 10, 'Number of steps per log')
+flags.DEFINE_integer('log_every_n_steps', 100, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
                      'How often to save summaries, secs')
 flags.DEFINE_integer('save_interval_secs', 300,
@@ -30,9 +29,9 @@ flags.DEFINE_integer('save_interval_secs', 300,
 
 FLAGS = flags.FLAGS
 
+_DATASET='train-*'
 _LEARNING_RATE_DECAY_FACTOR = 0.94
 _DATASET_SIZE = 121992
-#_DATASET_SIZE_VAL = 24119
 
 def get_learning_rate():
   if FLAGS.fine_tune_checkpoint:
@@ -63,7 +62,9 @@ def build_model():
   g = tf.Graph()
   with g.as_default(), tf.device(
       tf.train.replica_device_setter(FLAGS.ps_tasks)):
-    samples = preprocess.get_batch(FLAGS.dataset_dir, FLAGS.batch_size, is_training=True)
+    samples = get_dataset(os.path.join(FLAGS.tfrecord_dir, _DATASET),
+                          FLAGS.batch_size,
+                          is_training=True)
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
     with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=True)):
@@ -156,11 +157,12 @@ def get_checkpoint_init_fn():
 def train_model():
   """Trains mobilenet_v1."""
   tf.logging.set_verbosity(tf.logging.INFO)
+  tf.gfile.MakeDirs(FLAGS.train_logdir)
   g, train_tensor, summary_op = build_model()
   with g.as_default():
     slim.learning.train(
         train_tensor,
-        FLAGS.checkpoint_dir,
+        FLAGS.train_logdir,
         is_chief=(FLAGS.task == 0),
         master=FLAGS.master,
         log_every_n_steps=FLAGS.log_every_n_steps,
