@@ -21,6 +21,10 @@ flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_logdir', './train_log',
                     'Directory for writing training checkpoints and logs')
+flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
+flags.DEFINE_string('dataset', 'default', 'Name of the dataset.')
+flags.DEFINE_string('train_split', 'train',
+                    'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 100, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
                      'How often to save summaries, secs')
@@ -29,9 +33,7 @@ flags.DEFINE_integer('save_interval_secs', 300,
 
 FLAGS = flags.FLAGS
 
-_DATASET='train-*'
 _LEARNING_RATE_DECAY_FACTOR = 0.94
-_DATASET_SIZE = 121992
 
 def get_learning_rate():
   if FLAGS.fine_tune_checkpoint:
@@ -62,10 +64,10 @@ def build_model():
   g = tf.Graph()
   with g.as_default(), tf.device(
       tf.train.replica_device_setter(FLAGS.ps_tasks)):
-    samples = get_dataset(os.path.join(FLAGS.tfrecord_dir, _DATASET),
-                          FLAGS.batch_size,
-                          is_training=True)
-    inputs = tf.identity(samples['data'], name='data')
+    samples, num_samples = get_dataset(
+      FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir, FLAGS.batch_size, is_training=True)
+    inputs = tf.image.resize_images(samples['data'], [FLAGS.image_size, FLAGS.image_size])
+    inputs = tf.identity(inputs, name='data')
     labels = tf.identity(samples['label'], name='label')
     with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=True)):
       logits, _ = mobilenet_v2.mobilenet(
@@ -90,7 +92,7 @@ def build_model():
 
     # Configure the learning rate using an exponential decay.
     num_epochs_per_decay = 2.5
-    decay_steps = int(_DATASET_SIZE / FLAGS.batch_size * num_epochs_per_decay)
+    decay_steps = int(num_samples / FLAGS.batch_size * num_epochs_per_decay)
     global_step = tf.train.get_or_create_global_step()
     learning_rate = tf.train.exponential_decay(
         get_learning_rate(),
@@ -118,6 +120,7 @@ def build_model():
 
     total_loss = tf.check_numerics(total_loss, 'LossTensor is inf or nan.')
     summaries.add(tf.summary.scalar('losses/total_loss', total_loss))
+
     grad_updates = opt.apply_gradients(grads_and_vars, global_step=global_step)
     update_ops.append(grad_updates)
     update_op = tf.group(*update_ops, name='update_barrier')
@@ -155,9 +158,10 @@ def get_checkpoint_init_fn():
 
 
 def train_model():
-  """Trains mobilenet_v1."""
+  """Trains model."""
   tf.logging.set_verbosity(tf.logging.INFO)
   tf.gfile.MakeDirs(FLAGS.train_logdir)
+  tf.logging.info('Training on %s set', FLAGS.train_split)
   g, train_tensor, summary_op = build_model()
   with g.as_default():
     slim.learning.train(

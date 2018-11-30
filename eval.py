@@ -10,19 +10,21 @@ flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 250, 'Batch size')
-flags.DEFINE_integer('num_examples', 24119, 'Number of examples to evaluate')
 flags.DEFINE_integer('image_size', 32, 'Input image resolution')
 flags.DEFINE_bool('quantize', False, 'Quantize training')
-flags.DEFINE_string('train_logdir', './train_log', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', './train_log', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
+flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
+flags.DEFINE_string('dataset', 'default', 'Name of the dataset.')
+flags.DEFINE_string('eval_split', 'val',
+                    'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 5,
                      'How often (in seconds) to run evaluation.')
 flags.DEFINE_integer('max_number_of_evaluations', 5,
                      'Maximum number of eval iterations. Will loop '
                      'indefinitely upon nonpositive values.')
-FLAGS = flags.FLAGS
 
-_DATASET='val-*'
+FLAGS = flags.FLAGS
 
 def metrics(logits, labels):
   """Specify the metrics for eval.
@@ -43,20 +45,17 @@ def metrics(logits, labels):
   return list(names_to_updates.values())
 
 
-def build_model():
-  """Build the mobilenet_v1 model for evaluation.
-  Returns:
-    g: graph with rewrites after insertion of quantization ops and batch norm
-    folding.
-    eval_ops: eval ops for inference.
-    variables_to_restore: List of variables to restore from checkpoint.
-  """
+def eval_model():
+  """Evaluates model."""
+  tf.logging.set_verbosity(tf.logging.INFO)
+  tf.gfile.MakeDirs(FLAGS.eval_dir)
+  tf.logging.info('Evaluating on %s set', FLAGS.eval_split)
   g = tf.Graph()
   with g.as_default():
-    samples = get_dataset(os.path.join(FLAGS.tfrecord_dir, _DATASET),
-                          FLAGS.batch_size,
-                          is_training=False)
-    inputs = tf.identity(samples['data'], name='data')
+    samples, num_samples = get_dataset(
+      FLAGS.dataset, FLAGS.eval_split, FLAGS.dataset_dir, FLAGS.batch_size, is_training=False)
+    inputs = tf.image.resize_images(samples['data'], [FLAGS.image_size, FLAGS.image_size])
+    inputs = tf.identity(inputs, name='data')
     labels = tf.identity(samples['label'], name='label')
     with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
       _, end_points = mobilenet_v2.mobilenet(
@@ -70,17 +69,8 @@ def build_model():
 
     eval_ops = metrics(end_points['Predictions'], labels)
 
-  return g, eval_ops
-
-
-def eval_model():
-  """Evaluates mobilenet_v1."""
-  tf.logging.set_verbosity(tf.logging.INFO)
-  tf.gfile.MakeDirs(FLAGS.eval_dir)
-  g, eval_ops = build_model()
-  with g.as_default():
-    num_batches = math.ceil(FLAGS.num_examples / float(FLAGS.batch_size))
-    tf.logging.info('Eval num images %d', FLAGS.num_examples)
+    num_batches = math.ceil(num_samples / float(FLAGS.batch_size))
+    tf.logging.info('Eval num images %d', num_samples)
     tf.logging.info('Eval batch size %d and num batch %d',
                     FLAGS.batch_size, num_batches)
     num_eval_iters = None
@@ -88,7 +78,7 @@ def eval_model():
       num_eval_iters = FLAGS.max_number_of_evaluations
     slim.evaluation.evaluation_loop(
         FLAGS.master,
-        FLAGS.train_logdir,
+        FLAGS.checkpoint_dir,
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,
         eval_op=eval_ops,

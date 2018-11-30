@@ -3,10 +3,13 @@ import numpy as np
 import tensorflow as tf
 from time import time
 
-import common
+from dataset.build_dataset import PREPROCESS_METHOD
+from dataset.preprocess import first
 
 flags = tf.app.flags
 
+flags.DEFINE_string('preprocess_method', 'default',
+                    'The image data preprocess term.')
 flags.DEFINE_string('test_dataset_path',
                     '/home/data/lcz/test/round1_test_a_20181109.h5',
                     'Folder containing dataset.')
@@ -30,7 +33,8 @@ def model_test():
     s2_test = fid_test['sen2']
     num_test = s1_test.shape[0]
     num_batch = int(np.ceil(num_test/FLAGS.batch_size))
-
+    
+    preprocess_fn = PREPROCESS_METHOD[FLAGS.preprocess_method]
     with tf.Session() as sess:
         sess.run(init_op)
         pred_rows = []
@@ -43,7 +47,7 @@ def model_test():
           except:
             s1_data = s1_test[idx*FLAGS.batch_size:]
             s2_data = s2_test[idx*FLAGS.batch_size:]
-          img_data = common.preprocess_fn(s1_data, s2_data)
+          img_data = preprocess_fn(s1_data, s2_data)
 
           pred = sess.run(prediction, {img_tensor: img_data})
           

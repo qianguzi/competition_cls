@@ -4,3 +4,4 @@ train_log/
 val_log/
 result/
 .ipynb_checkpoints/
+tfrecord/
