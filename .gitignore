@@ -1,0 +1,6 @@
+.vscode/
+__pycache__
+train_log/
+val_log/
+result/
+.ipynb_checkpoints/
