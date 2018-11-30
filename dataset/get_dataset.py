@@ -1,7 +1,7 @@
 import h5py, glob
 import tensorflow as tf
 
-from dataset import common
+import common
 
 
 def get_dataset(file_path, batch_size, is_training=True):

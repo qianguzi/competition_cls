@@ -1,7 +1,7 @@
 """Provides flags that are common to scripts."""
 import tensorflow as tf
 
-from dataset import preprocess
+from dataset.preprocess import first
 
 flags = tf.app.flags
 
@@ -16,13 +16,13 @@ flags.DEFINE_string('tfrecord_dir', '/media/jun/data/lcz/tfrecord', 'Location of
 FLAGS = flags.FLAGS
 
 _PREPROCESS_TERM={
-  'default': preprocess.img_data_preprocess,
-  'all_channel_1': preprocess.img_data_preprocess
+  'default': first.img_data_preprocess,
+  'first': first.img_data_preprocess,
 }
 
 _PREPROCESS_CHANNEL={
   'default': 7,
-  'all_channel_1': 18
+  'first': 18,
 }
 
 try:

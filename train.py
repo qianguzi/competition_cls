@@ -1,8 +1,8 @@
 import os
 import tensorflow as tf
 
-from dataset import common
-from mobilenet import mobilenet_v2
+import common
+from net.mobilenet import mobilenet_v2
 from dataset.get_dataset import get_dataset
 
 slim = tf.contrib.slim

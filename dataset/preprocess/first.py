@@ -35,7 +35,7 @@ def data_norm(s, s_mean, s_std):
     elif len(s.shape) == 4:
       s_c = (s[:,:,:,i]-s_mean[i])/s_std[i]
     else:
-      raise ValueError('The dimensions of s must be 3/4.')
+      raise ValueError('The dimensions of s must be 3 or 4.')
     if (i==4 or i==5):
       s_c = np.where(s_c>4, 4, s_c)
       s_c = np.where(s_c<-4, -4, s_c)/4

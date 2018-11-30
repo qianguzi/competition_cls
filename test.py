@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from time import time
 
-from dataset import common
+import common
 
 flags = tf.app.flags
 

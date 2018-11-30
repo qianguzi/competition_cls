@@ -3,8 +3,8 @@ import tensorflow as tf
 from tensorflow.contrib import slim
 from tensorflow.python.tools import freeze_graph
 
-from mobilenet import mobilenet_v2
-from dataset import common
+from net.mobilenet import mobilenet_v2
+import common
 
 flags = tf.app.flags
 

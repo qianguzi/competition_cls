@@ -4,7 +4,7 @@ import math, h5py
 import numpy as np
 import tensorflow as tf
 
-from dataset import preprocess, common
+import common
 
 flags = tf.app.flags
 
@@ -103,9 +103,15 @@ def convert_dataset_balance(dataset, s1, s2, dataset_idx, per_class_num):
 def main():
   path_training = os.path.join(FLAGS.dataset_folder, 'training.h5')
   path_validation = os.path.join(FLAGS.dataset_folder, 'validation.h5')
-  s1_training, s2_training, label_training = preprocess.h5_read(path_training)
-  s1_validation, s2_validation, label_validation = preprocess.h5_read(path_validation)
-  num_val = label_validation.shape[0]
+  fid_training = h5py.File(path_training,'r')
+  s1_training = fid_training['sen1']
+  s2_training = fid_training['sen2']
+  label_training = fid_training['label']
+  fid_validation = h5py.File(path_validation,'r')
+  s1_validation = fid_validation['sen1']
+  s2_validation = fid_validation['sen2']
+  label_validation = fid_validation['label']
+  num_val = int(label_validation.shape[0])
 
   class_num = np.sum(label_training, axis=0, dtype=np.uint16)
   min_class_num = np.min(class_num)

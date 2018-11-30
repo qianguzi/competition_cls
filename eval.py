@@ -2,8 +2,8 @@ import os, math
 import tensorflow as tf
 from tensorflow.contrib import slim
 
-from dataset import common
-from mobilenet import mobilenet_v2
+import common
+from net.mobilenet import mobilenet_v2
 from dataset.get_dataset import get_dataset
 
 flags = tf.app.flags
