@@ -4,7 +4,7 @@ import math, h5py
 import numpy as np
 import tensorflow as tf
 
-from dataset.preprocess import first
+from dataset.preprocess import first, default
 
 flags = tf.app.flags
 
@@ -17,8 +17,8 @@ FLAGS = flags.FLAGS
 _NUM_CLASSES = 17
 _NUM_SHARDS = 4
 PREPROCESS_METHOD = {
-    'default': first.img_data_preprocess,
-    'first': first.img_data_preprocess,
+    'default': default.default_preprocess,
+    'first': first.first_preprocess,
 }
 
 def _int64_feature(value):
@@ -34,6 +34,9 @@ def data_aug(s1_data, s2_data, method):
   elif method == 3:
     s1_data = cv2.flip(s1_data, -1)
     s2_data = cv2.flip(s2_data, -1)
+  elif method == 0:
+    s1_data = s1_data
+    s2_data = s2_data
   else:
     raise RuntimeWarning('The augmentation factor is not supported yet.')
   return s1_data, s2_data 
@@ -62,6 +65,7 @@ def convert_dataset(dataset, s1, s2, labels, num_samples, preprocess_fn):
 
       label = int(np.argmax(labels[idx])+1)
       img_data = preprocess_fn(s1_data, s2_data)
+      img_data = np.reshape(img_data,[-1]).astype(np.float32)
 
       example = tf.train.Example(features=tf.train.Features(feature={
           'data': _float_feature(img_data),
@@ -97,16 +101,18 @@ def convert_dataset_balance(dataset, s1, s2, dataset_idx, per_class_num, preproc
           s1_data = s1[idx]
           s2_data = s2[idx]
         except:
-          method = i // dataset_idx[j].shape[0]
-          if method <= 0:
-             raise RuntimeError('The augmentation method must be positive.')
+          #method = i // dataset_idx[j].shape[0]
+          #if method <= 0:
+          #   raise RuntimeError('The augmentation method must be positive.')
+          method = np.random.randint(4)
           idx = i % dataset_idx[j].shape[0]
           s1_data = s1[idx]
           s2_data = s2[idx]
           data_aug(s1_data, s2_data, method)
 
-        label = int(j+1)
+        label = int(j + 1)
         img_data = preprocess_fn(s1_data, s2_data)
+        img_data = np.reshape(img_data, [-1]).astype(np.float32)
 
         example = tf.train.Example(features=tf.train.Features(feature={
             'data': _float_feature(img_data),
@@ -132,15 +138,19 @@ def main():
   num_val = int(label_validation.shape[0])
 
   class_num = np.sum(label_training, axis=0, dtype=np.uint16)
-  min_class_num = np.min(class_num)
-  per_class_num = min_class_num * FLAGS.aug_factor
   dataset_idx = []
+  #min_class_num = np.min(class_num)
+  #per_class_num = min_class_num * FLAGS.aug_factor
+  #for i in range(_NUM_CLASSES):
+  #  if class_num[i] < per_class_num:
+  #    dataset_idx.append(np.where(label_training[:,i])[0])
+  #  else:
+  #    dataset_idx.append(np.where(label_training[:,i])[0][:per_class_num])
+  max_class_num = np.max(class_num)
+  per_class_num = max_class_num
   for i in range(_NUM_CLASSES):
-    if class_num[i] < per_class_num:
-      dataset_idx.append(np.where(label_training[:,i])[0])
-    else:
-      dataset_idx.append(np.where(label_training[:,i])[0][:per_class_num])
-  
+    dataset_idx.append(np.where(label_training[:,i])[0])
+
   if FLAGS.preprocess_method not in PREPROCESS_METHOD:
     raise ValueError('The specified preprocess method is not supported yet.')
   preprocess_fn = PREPROCESS_METHOD[FLAGS.preprocess_method]

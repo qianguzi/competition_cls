@@ -29,8 +29,8 @@ import functools
 
 import tensorflow as tf
 
-from mobilenet import conv_blocks as ops
-from mobilenet import mobilenet as lib
+from net.mobilenet import conv_blocks as ops
+from net.mobilenet import mobilenet as lib
 
 slim = tf.contrib.slim
 op = lib.op
@@ -56,7 +56,7 @@ V2_DEF = dict(
         (slim.conv2d, slim.separable_conv2d): {'padding': 'SAME'}
     },
     spec=[
-        op(slim.conv2d, stride=1, num_outputs=32, kernel_size=[3, 3]),
+        op(slim.conv2d, stride=2, num_outputs=32, kernel_size=[3, 3]),
         op(ops.expanded_conv,
            expansion_size=expand_input(1, divisible_by=1),
            num_outputs=16),
@@ -69,9 +69,9 @@ V2_DEF = dict(
         op(ops.expanded_conv, stride=1, num_outputs=64),
         op(ops.expanded_conv, stride=1, num_outputs=64),
         op(ops.expanded_conv, stride=1, num_outputs=64),
-        #op(ops.expanded_conv, stride=1, num_outputs=96),
-        #op(ops.expanded_conv, stride=1, num_outputs=96),
-        #op(ops.expanded_conv, stride=1, num_outputs=96),
+        op(ops.expanded_conv, stride=1, num_outputs=96),
+        op(ops.expanded_conv, stride=1, num_outputs=96),
+        op(ops.expanded_conv, stride=1, num_outputs=96),
         op(ops.expanded_conv, stride=2, num_outputs=160),
         op(ops.expanded_conv, stride=1, num_outputs=160),
         op(ops.expanded_conv, stride=1, num_outputs=160),

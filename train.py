@@ -12,21 +12,23 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
-flags.DEFINE_integer('batch_size', 32, 'Batch size')
+flags.DEFINE_integer('batch_size', 64, 'Batch size')
 flags.DEFINE_integer('number_of_steps', None,
                      'Number of training steps to perform before stopping')
-flags.DEFINE_integer('image_size', 32, 'Input image resolution')
+flags.DEFINE_integer('image_size', 64, 'Input image resolution')
 flags.DEFINE_bool('quantize', False, 'Quantize training')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_logdir', './train_log',
                     'Directory for writing training checkpoints and logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
+#flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
+#                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'default', 'Name of the dataset.')
 flags.DEFINE_string('train_split', 'train',
                     'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 100, 'Number of steps per log')
-flags.DEFINE_integer('save_summaries_secs', 60,
+flags.DEFINE_integer('save_summaries_secs', 100,
                      'How often to save summaries, secs')
 flags.DEFINE_integer('save_interval_secs', 300,
                      'How often to save checkpoints, secs')

@@ -9,12 +9,14 @@ from dataset.get_dataset import get_dataset
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
-flags.DEFINE_integer('batch_size', 250, 'Batch size')
-flags.DEFINE_integer('image_size', 32, 'Input image resolution')
+flags.DEFINE_integer('batch_size', 32, 'Batch size')
+flags.DEFINE_integer('image_size', 64, 'Input image resolution')
 flags.DEFINE_bool('quantize', False, 'Quantize training')
 flags.DEFINE_string('checkpoint_dir', './train_log', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
+#flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
+#                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'default', 'Name of the dataset.')
 flags.DEFINE_string('eval_split', 'val',
                     'Which split of the dataset used for evaluation')
@@ -62,7 +64,8 @@ def eval_model():
           inputs,
           is_training=False,
           depth_multiplier=FLAGS.depth_multiplier,
-          num_classes=FLAGS.num_classes)
+          num_classes=FLAGS.num_classes,
+          finegrain_classification_mode=True)
 
     if FLAGS.quantize:
       tf.contrib.quantize.create_eval_graph()

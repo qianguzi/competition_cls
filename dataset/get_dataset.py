@@ -12,7 +12,7 @@ DatasetDescriptor = collections.namedtuple(
 )
 
 _DEFAULT_INFORMATION = DatasetDescriptor(
-    channel=18,
+    channel=6,
     splits_to_sizes={
         'train': 121992,
         'val': 24119,

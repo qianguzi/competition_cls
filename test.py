@@ -4,15 +4,16 @@ import tensorflow as tf
 from time import time
 
 from dataset.build_dataset import PREPROCESS_METHOD
-from dataset.preprocess import first
+from dataset.preprocess import first, default
 
 flags = tf.app.flags
 
-flags.DEFINE_string('preprocess_method', 'default',
-                    'The image data preprocess term.')
 flags.DEFINE_string('test_dataset_path',
                     '/home/data/lcz/test/round1_test_a_20181109.h5',
                     'Folder containing dataset.')
+#flags.DEFINE_string('test_dataset_path',
+#                    './round1_test_a_20181109.h5',
+#                    'Folder containing dataset.')
 flags.DEFINE_integer('batch_size', 100, 'Batch size')
 flags.DEFINE_string('save_path', './result/submission.csv',
                     'Path to output submission file.')
@@ -47,7 +48,10 @@ def model_test():
           except:
             s1_data = s1_test[idx*FLAGS.batch_size:]
             s2_data = s2_test[idx*FLAGS.batch_size:]
-          img_data = preprocess_fn(s1_data, s2_data)
+          img_data = []
+          for s1_n, s2_n in zip(s1_data, s2_data):
+            img_data.append(preprocess_fn(s1_n, s2_n))
+          img_data = np.stack(img_data, 0)
 
           pred = sess.run(prediction, {img_tensor: img_data})
           

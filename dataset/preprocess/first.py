@@ -19,11 +19,10 @@ def h5_read(path):
   label = fid['label']
   return s1, s2, label
 
-def img_data_preprocess(s1_data, s2_data):
+def first_preprocess(s1_data, s2_data):
   img_data = data_zoom(s1_data, s2_data)
   img_data[:,:,4:6] = np.log10(img_data[:,:,4:6])
   img_data = data_norm(img_data, _DATASET_MEAN, _DATASET_STD)
-  img_data = np.reshape(img_data,[-1]).astype(np.float32)
   return img_data
 
 
