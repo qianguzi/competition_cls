@@ -1,3 +1,7 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os, h5py
 import numpy as np
 import tensorflow as tf
@@ -17,6 +21,7 @@ flags.DEFINE_string('test_dataset_path',
 flags.DEFINE_integer('batch_size', 100, 'Batch size')
 flags.DEFINE_string('save_path', './result/submission.csv',
                     'Path to output submission file.')
+
 FLAGS = flags.FLAGS
 
 def model_test():

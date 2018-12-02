@@ -1,8 +1,13 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os
 import collections
 import h5py, glob
 import tensorflow as tf
 
+import dataset.data_augmentation as data_augmentation
 # Named tuple to describe the dataset properties.
 DatasetDescriptor = collections.namedtuple(
     'DatasetDescriptor',
@@ -35,7 +40,8 @@ _DATASETS_INFORMATION = {
 # Default file pattern of TFRecord of TensorFlow Example.
 _FILE_PATTERN = '%s-*'
 
-def get_dataset(dataset_name, split_name, dataset_dir, batch_size, is_training=True):
+def get_dataset(dataset_name, split_name, dataset_dir,
+                image_size, batch_size, is_training=True):
   '''Get batch of dataset.'''
   if dataset_name not in _DATASETS_INFORMATION:
     raise ValueError('The specified dataset is not supported yet.')
@@ -60,8 +66,12 @@ def get_dataset(dataset_name, split_name, dataset_dir, batch_size, is_training=T
       features={'data': tf.FixedLenFeature([32, 32, channel], tf.float32),
                 'label': tf.FixedLenFeature([], tf.int64),
                 'idx': tf.FixedLenFeature([], tf.int64)})
+
+  data = data_augmentation.preprocess_image(
+      features['data'], image_size, image_size, is_training)
+
   sample = {
-      'data': features['data'],
+      'data': data,
       'label': features['label'],
       'idx': features['idx']
   }

@@ -1,17 +1,21 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import sys
 import os, cv2
 import math, h5py
 import numpy as np
 import tensorflow as tf
 
-from dataset.preprocess import first, default
+import preprocess.first as first
+import preprocess.default as default
 
 flags = tf.app.flags
-
+#/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
 flags.DEFINE_string('dataset_folder', '/home/data/lcz', 'Folder containing dataset.')
 flags.DEFINE_string('output_dir', '/media/jun/data/lcz/tfrecord', 'Output location of dataset.')
 flags.DEFINE_string('preprocess_method', 'default', 'The image data preprocess term.')
-flags.DEFINE_integer('aug_factor', '3', 'The factor of data augmetation.')
 FLAGS = flags.FLAGS
 
 _NUM_CLASSES = 17
@@ -27,23 +31,11 @@ def _int64_feature(value):
 def _float_feature(value):
   return tf.train.Feature(float_list=tf.train.FloatList(value=value))
 
-def data_aug(s1_data, s2_data, method):
-  if method == 2 or method == 1:
-    s1_data = cv2.flip(s1_data, method-1)
-    s2_data = cv2.flip(s2_data, method-1)
-  elif method == 3:
-    s1_data = cv2.flip(s1_data, -1)
-    s2_data = cv2.flip(s2_data, -1)
-  elif method == 0:
-    s1_data = s1_data
-    s2_data = s2_data
-  else:
-    raise RuntimeWarning('The augmentation factor is not supported yet.')
-  return s1_data, s2_data 
-
-def convert_dataset(dataset, s1, s2, labels, num_samples, preprocess_fn):
+def convert_dataset(dataset, s1, s2, labels, preprocess_fn):
   sys.stdout.write('Processing ' + dataset + '\n')
   sys.stdout.flush()
+
+  num_samples = int(labels.shape[0])
   sys.stdout.write('Number of samples: %d\n' % (num_samples))
   sys.stdout.flush()
 
@@ -76,9 +68,16 @@ def convert_dataset(dataset, s1, s2, labels, num_samples, preprocess_fn):
     sys.stdout.write('\n')
     sys.stdout.flush()
 
-def convert_dataset_balance(dataset, s1, s2, dataset_idx, per_class_num, preprocess_fn):
+def convert_dataset_balance(dataset, s1, s2, labels, preprocess_fn):
   sys.stdout.write('Processing ' + dataset + '\n')
   sys.stdout.flush()
+  class_num = np.sum(labels, axis=0, dtype=np.uint16)
+
+  dataset_idx = []
+  per_class_num = np.max(class_num)
+  for i in range(_NUM_CLASSES):
+    dataset_idx.append(np.where(labels[:,i])[0])
+
   sys.stdout.write('Number of samples: %d\n' % (_NUM_CLASSES*per_class_num))
   sys.stdout.flush()
 
@@ -98,19 +97,14 @@ def convert_dataset_balance(dataset, s1, s2, dataset_idx, per_class_num, preproc
       for j in range(_NUM_CLASSES):
         try:
           idx = dataset_idx[j][i]
-          s1_data = s1[idx]
-          s2_data = s2[idx]
         except:
-          #method = i // dataset_idx[j].shape[0]
-          #if method <= 0:
-          #   raise RuntimeError('The augmentation method must be positive.')
-          method = np.random.randint(4)
-          idx = i % dataset_idx[j].shape[0]
-          s1_data = s1[idx]
-          s2_data = s2[idx]
-          data_aug(s1_data, s2_data, method)
+          idx = dataset_idx[j][np.random.randint(class_num[j])]
 
-        label = int(j + 1)
+        label = int(np.argmax(labels[idx])+1)
+        if label != (j+1):
+          raise RuntimeError('Label is wrong.')
+        s1_data = s1[idx]
+        s2_data = s2[idx]
         img_data = preprocess_fn(s1_data, s2_data)
         img_data = np.reshape(img_data, [-1]).astype(np.float32)
 
@@ -135,21 +129,6 @@ def main():
   s1_validation = fid_validation['sen1']
   s2_validation = fid_validation['sen2']
   label_validation = fid_validation['label']
-  num_val = int(label_validation.shape[0])
-
-  class_num = np.sum(label_training, axis=0, dtype=np.uint16)
-  dataset_idx = []
-  #min_class_num = np.min(class_num)
-  #per_class_num = min_class_num * FLAGS.aug_factor
-  #for i in range(_NUM_CLASSES):
-  #  if class_num[i] < per_class_num:
-  #    dataset_idx.append(np.where(label_training[:,i])[0])
-  #  else:
-  #    dataset_idx.append(np.where(label_training[:,i])[0][:per_class_num])
-  max_class_num = np.max(class_num)
-  per_class_num = max_class_num
-  for i in range(_NUM_CLASSES):
-    dataset_idx.append(np.where(label_training[:,i])[0])
 
   if FLAGS.preprocess_method not in PREPROCESS_METHOD:
     raise ValueError('The specified preprocess method is not supported yet.')
@@ -157,9 +136,9 @@ def main():
   tf.gfile.MakeDirs(FLAGS.output_dir)
   tf.gfile.MakeDirs(os.path.join(FLAGS.output_dir, FLAGS.preprocess_method))
 
-  convert_dataset_balance('train', s1_training, s2_training, dataset_idx, per_class_num, preprocess_fn)
+  convert_dataset_balance('train', s1_training, s2_training, label_training, preprocess_fn)
 
-  convert_dataset('val', s1_validation, s2_validation, label_validation, num_val, preprocess_fn)
+  convert_dataset('val', s1_validation, s2_validation, label_validation, preprocess_fn)
 
 if __name__ == '__main__':
   main()

@@ -1,3 +1,7 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os
 import tensorflow as tf
 
@@ -15,7 +19,7 @@ flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
 flags.DEFINE_integer('batch_size', 64, 'Batch size')
 flags.DEFINE_integer('number_of_steps', None,
                      'Number of training steps to perform before stopping')
-flags.DEFINE_integer('image_size', 64, 'Input image resolution')
+flags.DEFINE_integer('image_size', 96, 'Input image resolution')
 flags.DEFINE_bool('quantize', False, 'Quantize training')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
@@ -66,12 +70,11 @@ def build_model():
   g = tf.Graph()
   with g.as_default(), tf.device(
       tf.train.replica_device_setter(FLAGS.ps_tasks)):
-    samples, num_samples = get_dataset(
-      FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir, FLAGS.batch_size, is_training=True)
-    inputs = tf.image.resize_images(samples['data'], [FLAGS.image_size, FLAGS.image_size])
-    inputs = tf.identity(inputs, name='data')
+    samples, num_samples = get_dataset(FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir,
+                                       FLAGS.image_size, FLAGS.batch_size, is_training=True)
+    inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=True)):
+    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=True， weight_decay=0.0001)):
       logits, _ = mobilenet_v2.mobilenet(
           inputs,
           is_training=True,

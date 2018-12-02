@@ -5,3 +5,4 @@ val_log/
 result/
 .ipynb_checkpoints/
 tfrecord/
+fine_tune/

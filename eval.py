@@ -1,3 +1,7 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os, math
 import tensorflow as tf
 from tensorflow.contrib import slim
@@ -9,8 +13,8 @@ from dataset.get_dataset import get_dataset
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
-flags.DEFINE_integer('batch_size', 32, 'Batch size')
-flags.DEFINE_integer('image_size', 64, 'Input image resolution')
+flags.DEFINE_integer('batch_size', 64, 'Batch size')
+flags.DEFINE_integer('image_size', 96, 'Input image resolution')
 flags.DEFINE_bool('quantize', False, 'Quantize training')
 flags.DEFINE_string('checkpoint_dir', './train_log', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
@@ -54,12 +58,11 @@ def eval_model():
   tf.logging.info('Evaluating on %s set', FLAGS.eval_split)
   g = tf.Graph()
   with g.as_default():
-    samples, num_samples = get_dataset(
-      FLAGS.dataset, FLAGS.eval_split, FLAGS.dataset_dir, FLAGS.batch_size, is_training=False)
-    inputs = tf.image.resize_images(samples['data'], [FLAGS.image_size, FLAGS.image_size])
-    inputs = tf.identity(inputs, name='data')
+    samples, num_samples = get_dataset(FLAGS.dataset, FLAGS.eval_split, FLAGS.dataset_dir,
+                                       FLAGS.image_size, FLAGS.batch_size, is_training=False)
+    inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
+    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False， weight_decay=0.0001)):
       _, end_points = mobilenet_v2.mobilenet(
           inputs,
           is_training=False,
