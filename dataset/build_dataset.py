@@ -20,7 +20,7 @@ FLAGS = flags.FLAGS
 
 _NUM_CLASSES = 17
 _NUM_SHARDS = 4
-PREPROCESS_METHOD = {
+_PREPROCESS_METHOD = {
     'default': default.default_preprocess,
     'first': first.first_preprocess,
 }
@@ -130,9 +130,9 @@ def main():
   s2_validation = fid_validation['sen2']
   label_validation = fid_validation['label']
 
-  if FLAGS.preprocess_method not in PREPROCESS_METHOD:
+  if FLAGS.preprocess_method not in _PREPROCESS_METHOD:
     raise ValueError('The specified preprocess method is not supported yet.')
-  preprocess_fn = PREPROCESS_METHOD[FLAGS.preprocess_method]
+  preprocess_fn = _PREPROCESS_METHOD[FLAGS.preprocess_method]
   tf.gfile.MakeDirs(FLAGS.output_dir)
   tf.gfile.MakeDirs(os.path.join(FLAGS.output_dir, FLAGS.preprocess_method))
 

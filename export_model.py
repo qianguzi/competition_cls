@@ -15,7 +15,7 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-76493', 'Checkpoint path')
+flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-21951', 'Checkpoint path')
 flags.DEFINE_string('export_path', './result/model.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_integer('channel', 6, 'Number of channel.')
@@ -32,10 +32,11 @@ def main(unused_argv):
   tf.logging.info('Prepare to export model to: %s', FLAGS.export_path)
 
   with tf.Graph().as_default():
-    input_image = tf.placeholder(tf.float32, [None, 32, 32, FLAGS.channel], name=_INPUT_NAME)
+    input_image = tf.placeholder(tf.float32, [32, 32, FLAGS.channel], name=_INPUT_NAME)
     inputs = data_augmentation.preprocess_image(
         input_image, FLAGS.image_size, FLAGS.image_size, is_training=False)
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False， weight_decay=0.0001)):
+    inputs = tf.expand_dims(inputs, 0)
+    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
       _, end_points = mobilenet_v2.mobilenet(
           inputs,
           is_training=False,

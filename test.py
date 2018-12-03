@@ -2,12 +2,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 import os, h5py
 import numpy as np
 import tensorflow as tf
 from time import time
 
-from dataset.build_dataset import PREPROCESS_METHOD
 from dataset.preprocess import first, default
 
 flags = tf.app.flags
@@ -18,11 +18,17 @@ flags.DEFINE_string('test_dataset_path',
 #flags.DEFINE_string('test_dataset_path',
 #                    './round1_test_a_20181109.h5',
 #                    'Folder containing dataset.')
-flags.DEFINE_integer('batch_size', 100, 'Batch size')
 flags.DEFINE_string('save_path', './result/submission.csv',
                     'Path to output submission file.')
+flags.DEFINE_string('preprocess_method', 'default', 'The image data preprocess term.')
 
 FLAGS = flags.FLAGS
+
+
+_PREPROCESS_METHOD = {
+    'default': default.default_preprocess,
+    'first': first.first_preprocess,
+}
 
 def model_test():
   g = tf.Graph()
@@ -37,37 +43,31 @@ def model_test():
     fid_test = h5py.File(FLAGS.test_dataset_path, 'r')
     s1_test = fid_test['sen1']
     s2_test = fid_test['sen2']
-    num_test = s1_test.shape[0]
-    num_batch = int(np.ceil(num_test/FLAGS.batch_size))
+    num_test = int(s1_test.shape[0])
     
-    preprocess_fn = PREPROCESS_METHOD[FLAGS.preprocess_method]
+    preprocess_fn = _PREPROCESS_METHOD[FLAGS.preprocess_method]
     with tf.Session() as sess:
         sess.run(init_op)
         pred_rows = []
         start_time = time()
-        for idx in range(num_batch):
-          single_start_time = time()
-          try:
-            s1_data = s1_test[idx*FLAGS.batch_size:(idx+1)*FLAGS.batch_size]
-            s2_data = s2_test[idx*FLAGS.batch_size:(idx+1)*FLAGS.batch_size]
-          except:
-            s1_data = s1_test[idx*FLAGS.batch_size:]
-            s2_data = s2_test[idx*FLAGS.batch_size:]
-          img_data = []
-          for s1_n, s2_n in zip(s1_data, s2_data):
-            img_data.append(preprocess_fn(s1_n, s2_n))
-          img_data = np.stack(img_data, 0)
+        for idx in range(num_test):
+          s1_data = s1_test[idx]
+          s2_data = s2_test[idx]
+          img_data = preprocess_fn(s1_data, s2_data)
 
           pred = sess.run(prediction, {img_tensor: img_data})
           
           pred = pred[:, 1:].astype(np.uint8)
           pred_rows.append(pred)
-          print('Batch[{0}/{1}] time cost: {2}'.format(idx+1, num_batch, time()-single_start_time))
+          sys.stdout.write('\r>> Data[{0}/{1}] time cost: {2}'.format(idx+1, num_test, time()-start_time))
+          sys.stdout.flush()
+        sys.stdout.write('\n')
+        sys.stdout.flush()
         pred_rows = np.concatenate(pred_rows, 0)
-        print('All time cost: %s' % (time()-start_time))
         tf.gfile.MakeDirs(os.path.dirname(FLAGS.save_path))
         np.savetxt(FLAGS.save_path, pred_rows, delimiter=",", fmt='%s')
-        print('File submission.csv success saved.')
+        sys.stdout.write('[*]File submission.csv success saved.\n')
+        sys.stdout.flush()
 
 
 if __name__ == '__main__':

@@ -62,7 +62,7 @@ def eval_model():
                                        FLAGS.image_size, FLAGS.batch_size, is_training=False)
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False， weight_decay=0.0001)):
+    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False, weight_decay=0.0001)):
       _, end_points = mobilenet_v2.mobilenet(
           inputs,
           is_training=False,

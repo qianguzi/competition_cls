@@ -4,12 +4,11 @@ from __future__ import print_function
 
 import os
 import tensorflow as tf
+from tensorflow.contrib import slim
 
 import common
 from net.mobilenet import mobilenet_v2
 from dataset.get_dataset import get_dataset
-
-slim = tf.contrib.slim
 
 flags = tf.app.flags
 
@@ -74,7 +73,7 @@ def build_model():
                                        FLAGS.image_size, FLAGS.batch_size, is_training=True)
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=True， weight_decay=0.0001)):
+    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=True, weight_decay=0.0001)):
       logits, _ = mobilenet_v2.mobilenet(
           inputs,
           is_training=True,
@@ -105,7 +104,7 @@ def build_model():
         decay_steps,
         _LEARNING_RATE_DECAY_FACTOR,
         staircase=True)
-    opt = tf.train.GradientDescentOptimizer(learning_rate)
+    opt = tf.train.RMSPropOptimizer(learning_rate, decay=0.9, momentum=0.9)
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
     total_losses = []
@@ -140,7 +139,7 @@ def build_model():
 def get_checkpoint_init_fn():
   """Returns the checkpoint init_fn if the checkpoint is provided."""
   if FLAGS.fine_tune_checkpoint:
-    variables_to_restore = slim.get_variables_to_restore()
+    variables_to_restore = slim.get_variables_to_restore(exclude=['MobilenetV2/Logits'])
     global_step_reset = tf.assign(tf.train.get_or_create_global_step(), 0)
     # When restoring from a floating point model, the min/max values for
     # quantized weights and activations are not present.
@@ -168,6 +167,10 @@ def train_model():
   tf.gfile.MakeDirs(FLAGS.train_logdir)
   tf.logging.info('Training on %s set', FLAGS.train_split)
   g, train_tensor, summary_op = build_model()
+  # Soft placement allows placing on CPU ops without GPU implementation.
+  gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.7)
+  session_config = tf.ConfigProto(
+      allow_soft_placement=True, log_device_placement=False, gpu_options=gpu_options)
   with g.as_default():
     slim.learning.train(
         train_tensor,
@@ -176,6 +179,7 @@ def train_model():
         master=FLAGS.master,
         log_every_n_steps=FLAGS.log_every_n_steps,
         graph=g,
+        session_config=session_config,
         number_of_steps=FLAGS.number_of_steps,
         save_summaries_secs=FLAGS.save_summaries_secs,
         save_interval_secs=FLAGS.save_interval_secs,
