@@ -6,7 +6,8 @@ import os
 import tensorflow as tf
 from tensorflow.contrib import slim
 
-import common
+import common, model
+from utils import train_utils
 from net.mobilenet import mobilenet_v2
 from dataset.get_dataset import get_dataset
 
@@ -16,10 +17,9 @@ flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
 flags.DEFINE_integer('batch_size', 64, 'Batch size')
-flags.DEFINE_integer('number_of_steps', None,
+flags.DEFINE_integer('number_of_steps', 1500000,
                      'Number of training steps to perform before stopping')
 flags.DEFINE_integer('image_size', 96, 'Input image resolution')
-flags.DEFINE_bool('quantize', False, 'Quantize training')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_logdir', './train_log',
@@ -27,37 +27,44 @@ flags.DEFINE_string('train_logdir', './train_log',
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
-flags.DEFINE_string('dataset', 'default', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'train',
+flags.DEFINE_string('dataset', 'multilabel', 'Name of the dataset.')
+flags.DEFINE_string('train_split', 'train-val',
                     'Which split of the dataset to be used for training')
-flags.DEFINE_integer('log_every_n_steps', 100, 'Number of steps per log')
-flags.DEFINE_integer('save_summaries_secs', 100,
+flags.DEFINE_integer('log_every_n_steps', 50, 'Number of steps per log')
+flags.DEFINE_integer('save_summaries_secs', 60,
                      'How often to save summaries, secs')
 flags.DEFINE_integer('save_interval_secs', 300,
                      'How often to save checkpoints, secs')
+# Settings for training strategy.
+flags.DEFINE_enum('learning_policy', 'poly', ['poly', 'step'],
+                  'Learning rate policy for training.')
+# Use 0.007 when training on PASCAL augmented training set, train_aug. When
+# fine-tuning on PASCAL trainval set, use learning rate=0.0001.
+flags.DEFINE_float('base_learning_rate', .007,
+                   'The base learning rate for model training.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.1,
+                   'The rate to decay the base learning rate.')
+flags.DEFINE_integer('learning_rate_decay_step', 10000,
+                     'Decay the base learning rate at a fixed step.')
+flags.DEFINE_float('learning_power', 0.9,
+                   'The power value used in the poly learning policy.')
+flags.DEFINE_integer('slow_start_step', 0,
+                     'Training model with small learning rate for few steps.')
+flags.DEFINE_float('slow_start_learning_rate', 1e-4,
+                   'Learning rate employed during slow start.')
+flags.DEFINE_float('momentum', 0.9, 'The momentum value to use')
+# For weight_decay, use 0.00004 for MobileNet-V2 or Xcpetion model variants.
+# Use 0.0001 for ResNet model variants.
+flags.DEFINE_float('weight_decay', 0.0001,
+                   'The value of the weight decay for training.')
+# Set to True if one wants to fine-tune the batch norm parameters in DeepLabv3.
+# Set to False and use small batch size to save GPU memory.
+flags.DEFINE_boolean('fine_tune_batch_norm', True,
+                     'Fine tune the batch norm parameters or not.')
+flags.DEFINE_integer('output_stride', 16,
+                     'The ratio of input to output spatial resolution.')
 
 FLAGS = flags.FLAGS
-
-_LEARNING_RATE_DECAY_FACTOR = 0.94
-
-def get_learning_rate():
-  if FLAGS.fine_tune_checkpoint:
-    # If we are fine tuning a checkpoint we need to start at a lower learning
-    # rate since we are farther along on training.
-    return 1e-4
-  else:
-    return 0.01
-
-
-def get_quant_delay():
-  if FLAGS.fine_tune_checkpoint:
-    # We can start quantizing immediately if we are finetuning.
-    return 0
-  else:
-    # We need to wait for the model to train a bit before we quantize if we are
-    # training from scratch.
-    return 250000
-
 
 def build_model():
   """Builds graph for model to train with rewrites for quantization.
@@ -69,42 +76,33 @@ def build_model():
   g = tf.Graph()
   with g.as_default(), tf.device(
       tf.train.replica_device_setter(FLAGS.ps_tasks)):
-    samples, num_samples = get_dataset(FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir,
+    samples, _ = get_dataset(FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir,
                                        FLAGS.image_size, FLAGS.batch_size, is_training=True)
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=True, weight_decay=0.0001)):
-      logits, _ = mobilenet_v2.mobilenet(
-          inputs,
-          is_training=True,
-          depth_multiplier=FLAGS.depth_multiplier,
-          num_classes=FLAGS.num_classes,
-          finegrain_classification_mode=True)
+    model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
+    logits, _ = model.get_logits(
+        inputs,
+        model_options=model_options,
+        num_classes=FLAGS.num_classes,
+        weight_decay=FLAGS.weight_decay,
+        is_training=True,
+        fine_tune_batch_norm=FLAGS.fine_tune_batch_norm)
     one_hot_labels = slim.one_hot_encoding(labels, FLAGS.num_classes, on_value=1.0, off_value=0.0)
     tf.losses.softmax_cross_entropy(one_hot_labels, logits)
-
-    # Call rewriter to produce graph with fake quant ops and folded batch norms
-    # quant_delay delays start of quantization till quant_delay steps, allowing
-    # for better model accuracy.
-    if FLAGS.quantize:
-      tf.contrib.quantize.create_training_graph(quant_delay=get_quant_delay())
     
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     # Gather initial summaries.
     summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
-    # Configure the learning rate using an exponential decay.
-    num_epochs_per_decay = 2.5
-    decay_steps = int(num_samples / FLAGS.batch_size * num_epochs_per_decay)
     global_step = tf.train.get_or_create_global_step()
-    learning_rate = tf.train.exponential_decay(
-        get_learning_rate(),
-        global_step,
-        decay_steps,
-        _LEARNING_RATE_DECAY_FACTOR,
-        staircase=True)
-    opt = tf.train.RMSPropOptimizer(learning_rate, decay=0.9, momentum=0.9)
+    learning_rate = train_utils.get_model_learning_rate(
+          FLAGS.learning_policy, FLAGS.base_learning_rate,
+          FLAGS.learning_rate_decay_step, FLAGS.learning_rate_decay_factor,
+          FLAGS.number_of_steps, FLAGS.learning_power,
+          FLAGS.slow_start_step, FLAGS.slow_start_learning_rate)
+    opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
     total_losses = []
@@ -167,10 +165,6 @@ def train_model():
   tf.gfile.MakeDirs(FLAGS.train_logdir)
   tf.logging.info('Training on %s set', FLAGS.train_split)
   g, train_tensor, summary_op = build_model()
-  # Soft placement allows placing on CPU ops without GPU implementation.
-  gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.7)
-  session_config = tf.ConfigProto(
-      allow_soft_placement=True, log_device_placement=False, gpu_options=gpu_options)
   with g.as_default():
     slim.learning.train(
         train_tensor,
@@ -179,7 +173,6 @@ def train_model():
         master=FLAGS.master,
         log_every_n_steps=FLAGS.log_every_n_steps,
         graph=g,
-        session_config=session_config,
         number_of_steps=FLAGS.number_of_steps,
         save_summaries_secs=FLAGS.save_summaries_secs,
         save_interval_secs=FLAGS.save_interval_secs,

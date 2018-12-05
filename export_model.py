@@ -15,7 +15,7 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-21951', 'Checkpoint path')
+flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-171766', 'Checkpoint path')
 flags.DEFINE_string('export_path', './result/model.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_integer('channel', 6, 'Number of channel.')
@@ -38,7 +38,7 @@ def main(unused_argv):
     inputs = tf.expand_dims(inputs, 0)
     with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
       _, end_points = mobilenet_v2.mobilenet(
-          inputs,
+          inputs[:,:,:,3:],
           is_training=False,
           depth_multiplier=FLAGS.depth_multiplier,
           num_classes=FLAGS.num_classes,

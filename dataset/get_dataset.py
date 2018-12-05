@@ -15,15 +15,15 @@ DatasetDescriptor = collections.namedtuple(
      'splits_to_sizes',
     ]
 )
-
+# exclude 'class'
 _DEFAULT_INFORMATION = DatasetDescriptor(
     channel=6,
     splits_to_sizes={
-        'train': 121992,
+        'train': 839103,
         'val': 24119,
     },
 )
-
+# exclude 'class'
 _FIRST_INFORMATION = DatasetDescriptor(
     channel=18,
     splits_to_sizes={
@@ -31,10 +31,25 @@ _FIRST_INFORMATION = DatasetDescriptor(
         'val': 24119,
     },
 )
+# include `class`
+_MULTILABLE_INFORMATION = DatasetDescriptor(
+    channel=7,
+    splits_to_sizes={
+        'train': 878866,
+        'val': 7558,
+        'train-train': 822307,
+        'train-val': 56559,
+        'val-train': 7065,
+        'val-val': 493,
+        'oritrain': 352366,
+        'orival': 24119,
+    }
+)
 
 _DATASETS_INFORMATION = {
     'default': _DEFAULT_INFORMATION,
     'first': _FIRST_INFORMATION,
+    'multilabel': _MULTILABLE_INFORMATION,
 }
 
 # Default file pattern of TFRecord of TensorFlow Example.
@@ -64,6 +79,7 @@ def get_dataset(dataset_name, split_name, dataset_dir,
   features = tf.parse_single_example(
       serialized_example,
       features={'data': tf.FixedLenFeature([32, 32, channel], tf.float32),
+                'class': tf.FixedLenFeature([], tf.int64),
                 'label': tf.FixedLenFeature([], tf.int64),
                 'idx': tf.FixedLenFeature([], tf.int64)})
 
@@ -72,6 +88,7 @@ def get_dataset(dataset_name, split_name, dataset_dir,
 
   sample = {
       'data': data,
+      'class':features['class'],
       'label': features['label'],
       'idx': features['idx']
   }

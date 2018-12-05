@@ -28,6 +28,7 @@ FLAGS = flags.FLAGS
 _PREPROCESS_METHOD = {
     'default': default.default_preprocess,
     'first': first.first_preprocess,
+    'multiscale': default.new_preprocess,
 }
 
 def model_test():
@@ -53,7 +54,7 @@ def model_test():
         for idx in range(num_test):
           s1_data = s1_test[idx]
           s2_data = s2_test[idx]
-          img_data = preprocess_fn(s1_data, s2_data)
+          img_data = preprocess_fn(s1_data, s2_data).astype(np.float32)
 
           pred = sess.run(prediction, {img_tensor: img_data})
           

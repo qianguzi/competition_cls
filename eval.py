@@ -2,11 +2,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import six
 import os, math
 import tensorflow as tf
 from tensorflow.contrib import slim
 
-import common
+import common, model
 from net.mobilenet import mobilenet_v2
 from dataset.get_dataset import get_dataset
 
@@ -15,20 +16,21 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 64, 'Batch size')
 flags.DEFINE_integer('image_size', 96, 'Input image resolution')
-flags.DEFINE_bool('quantize', False, 'Quantize training')
 flags.DEFINE_string('checkpoint_dir', './train_log', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
-flags.DEFINE_string('dataset', 'default', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'val',
+flags.DEFINE_string('dataset', 'multilabel', 'Name of the dataset.')
+flags.DEFINE_string('eval_split', 'val-val',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 5,
                      'How often (in seconds) to run evaluation.')
 flags.DEFINE_integer('max_number_of_evaluations', 5,
                      'Maximum number of eval iterations. Will loop '
                      'indefinitely upon nonpositive values.')
+flags.DEFINE_integer('output_stride', 16,
+                     'The ratio of input to output spatial resolution.')
 
 FLAGS = flags.FLAGS
 
@@ -40,15 +42,20 @@ def metrics(logits, labels):
   Returns:
      Eval Op for the graph.
   """
-  labels = tf.squeeze(labels)
-  names_to_values, names_to_updates = slim.metrics.aggregate_metric_map({
-      'Accuracy': tf.metrics.accuracy(tf.argmax(logits, 1), labels),
-      'Recall_5': tf.metrics.recall_at_k(labels, logits, 5),
-  })
-  for name, value in names_to_values.items():
-    slim.summaries.add_scalar_summary(
-        value, name, prefix='eval', print_summary=True)
-  return list(names_to_updates.values())
+  predictions = tf.argmax(logits, axis=1)
+  predictions = tf.reshape(predictions, shape=[-1])
+  labels = tf.reshape(labels, shape=[-1])
+
+  # Define the evaluation metric.
+  metric_map = {}
+  metric_map['accuracy'] = tf.metrics.accuracy(labels, predictions)
+
+  metrics_to_values, metrics_to_updates = (
+      tf.contrib.metrics.aggregate_metric_map(metric_map))
+
+  for metric_name, metric_value in six.iteritems(metrics_to_values):
+    slim.summaries.add_scalar_summary(metric_value, metric_name, print_summary=True)
+  return list(metrics_to_updates.values())
 
 
 def eval_model():
@@ -62,16 +69,13 @@ def eval_model():
                                        FLAGS.image_size, FLAGS.batch_size, is_training=False)
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False, weight_decay=0.0001)):
-      _, end_points = mobilenet_v2.mobilenet(
-          inputs,
-          is_training=False,
-          depth_multiplier=FLAGS.depth_multiplier,
-          num_classes=FLAGS.num_classes,
-          finegrain_classification_mode=True)
-
-    if FLAGS.quantize:
-      tf.contrib.quantize.create_eval_graph()
+    model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
+    _, end_points = model.get_logits(
+        inputs,
+        model_options=model_options,
+        num_classes=FLAGS.num_classes,
+        is_training=False,
+        fine_tune_batch_norm=False)
 
     eval_ops = metrics(end_points['Predictions'], labels)
 
@@ -82,12 +86,14 @@ def eval_model():
     num_eval_iters = None
     if FLAGS.max_number_of_evaluations > 0:
       num_eval_iters = FLAGS.max_number_of_evaluations
+    session_config = tf.ConfigProto(device_count={'GPU': 0})
     slim.evaluation.evaluation_loop(
         FLAGS.master,
         FLAGS.checkpoint_dir,
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,
         eval_op=eval_ops,
+        session_config=session_config,
         max_number_of_evaluations=num_eval_iters,
         eval_interval_secs=FLAGS.eval_interval_secs)
 
