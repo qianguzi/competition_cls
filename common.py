@@ -4,7 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import collections
+import copy, collections
 import tensorflow as tf
 
 flags = tf.app.flags
@@ -12,10 +12,10 @@ flags = tf.app.flags
 # Flags for input preprocessing.
 flags.DEFINE_integer('num_classes', 18, 'Number of classes to distinguish')
 # Model dependent flags.
-flags.DEFINE_string('model_variant', 'xception_41', 'DeepLab model variant.')
+flags.DEFINE_string('model_variant', 'resnet_v1_50_beta', 'DeepLab model variant.')
 # Defaults to None. Set multi_grid = [1, 2, 4] when using provided
 # 'resnet_v1_{50,101}_beta' checkpoints.
-flags.DEFINE_multi_integer('multi_grid', [1, 2, 4],
+flags.DEFINE_multi_integer('multi_grid', [1, 1, 1],
                            'Employ a hierarchy of atrous rates for ResNet.')
 flags.DEFINE_float('depth_multiplier', 1.0,
                    'Multiplier for the depth (number of channels) for all '

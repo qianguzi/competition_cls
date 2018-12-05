@@ -27,8 +27,8 @@ flags.DEFINE_string('train_logdir', './train_log',
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
-flags.DEFINE_string('dataset', 'multilabel', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'train-val',
+flags.DEFINE_string('dataset', 'name', 'Name of the dataset.')
+flags.DEFINE_string('train_split', 'train',
                     'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 50, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
@@ -40,7 +40,7 @@ flags.DEFINE_enum('learning_policy', 'poly', ['poly', 'step'],
                   'Learning rate policy for training.')
 # Use 0.007 when training on PASCAL augmented training set, train_aug. When
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
-flags.DEFINE_float('base_learning_rate', .007,
+flags.DEFINE_float('base_learning_rate', .0001,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.1,
                    'The rate to decay the base learning rate.')

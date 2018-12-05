@@ -206,7 +206,7 @@ def extract_features(images,
                      is_training=False,
                      fine_tune_batch_norm=False,
                      regularize_depthwise=False,
-                     preprocess_images=True,
+                     preprocess_images=False,
                      num_classes=None,
                      global_pool=False):
   """Extracts features by the particular model_variant.

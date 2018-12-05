@@ -21,12 +21,12 @@ flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event l
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
-flags.DEFINE_string('dataset', 'multilabel', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'val-val',
+flags.DEFINE_string('dataset', 'name', 'Name of the dataset.')
+flags.DEFINE_string('eval_split', 'val',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 5,
                      'How often (in seconds) to run evaluation.')
-flags.DEFINE_integer('max_number_of_evaluations', 5,
+flags.DEFINE_integer('max_number_of_evaluations', 500,
                      'Maximum number of eval iterations. Will loop '
                      'indefinitely upon nonpositive values.')
 flags.DEFINE_integer('output_stride', 16,
@@ -78,7 +78,7 @@ def eval_model():
         fine_tune_batch_norm=False)
 
     eval_ops = metrics(end_points['Predictions'], labels)
-
+    #num_samples = 1000
     num_batches = math.ceil(num_samples / float(FLAGS.batch_size))
     tf.logging.info('Eval num images %d', num_samples)
     tf.logging.info('Eval batch size %d and num batch %d',

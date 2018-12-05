@@ -20,7 +20,7 @@ flags.DEFINE_string('test_dataset_path',
 #                    'Folder containing dataset.')
 flags.DEFINE_string('save_path', './result/submission.csv',
                     'Path to output submission file.')
-flags.DEFINE_string('preprocess_method', 'default', 'The image data preprocess term.')
+flags.DEFINE_string('preprocess_method', 'name', 'The image data preprocess term.')
 
 FLAGS = flags.FLAGS
 
@@ -29,6 +29,7 @@ _PREPROCESS_METHOD = {
     'default': default.default_preprocess,
     'first': first.first_preprocess,
     'multiscale': default.new_preprocess,
+    'name': default.new_preprocess,
 }
 
 def model_test():

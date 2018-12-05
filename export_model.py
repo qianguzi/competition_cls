@@ -20,6 +20,8 @@ flags.DEFINE_string('export_path', './result/model.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_integer('channel', 6, 'Number of channel.')
 flags.DEFINE_integer('image_size', 96, 'Input image resolution')
+flags.DEFINE_integer('output_stride', 16,
+                     'The ratio of input to output spatial resolution.')
 # Input name of the exported model.
 _INPUT_NAME = 'ImageTensor'
 

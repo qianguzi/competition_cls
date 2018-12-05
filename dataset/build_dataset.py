@@ -7,6 +7,7 @@ import os, cv2
 import math, h5py
 import numpy as np
 import tensorflow as tf
+from random import shuffle
 
 import preprocess.first as first
 import preprocess.default as default
@@ -15,17 +16,21 @@ flags = tf.app.flags
 #/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
 flags.DEFINE_string('dataset_folder', '/home/data/lcz', 'Folder containing dataset.')
 flags.DEFINE_string('output_dir', '/media/jun/data/lcz/tfrecord', 'Output location of dataset.')
-flags.DEFINE_string('preprocess_method', 'multilabel', 'The image data preprocess term.')
+flags.DEFINE_string('preprocess_method', 'name', 'The image data preprocess term.')
 flags.DEFINE_float('split_factor', 0.98, 'The image data preprocess term.')
 FLAGS = flags.FLAGS
 
 _NUM_CLASSES = 17
-_NUM_SHARDS = 4
+_NUM_SHARDS = 10
 _PREPROCESS_METHOD = {
     'default': default.default_preprocess,
     'first': first.first_preprocess,
-    'multilabel': default.new_preprocess, 
+    'multilabel': default.new_preprocess,
+    'name': default.new_preprocess, 
 }
+
+def _bytes_feature(value):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 def _int64_feature(value):
   return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
@@ -33,12 +38,12 @@ def _int64_feature(value):
 def _float_feature(value):
   return tf.train.Feature(float_list=tf.train.FloatList(value=value))
 
-def convert_dataset(dataset, s1, s2, labels, preprocess_fn, dataset_idx=None, num_shares=2):
+def convert_dataset(dataset, s1, s2, labels, preprocess_fn, dataset_idx=None, num_shares=1):
   sys.stdout.write('Processing ' + dataset + '\n')
   sys.stdout.flush()
 
   if dataset_idx is None:
-    num_samples = int(labels.shape[0])
+    num_samples = int(labels[dataset].shape[0])
   else:
     num_samples = len(dataset_idx)
   sys.stdout.write('Number of samples: %d\n' % (num_samples))
@@ -58,35 +63,33 @@ def convert_dataset(dataset, s1, s2, labels, preprocess_fn, dataset_idx=None, nu
           i + 1, num_samples, shard_id))
       sys.stdout.flush()
       if dataset_idx is None:
+        name = dataset
         idx = i
       else:
-        idx = dataset_idx[i]
-      label = int(np.argmax(labels[idx])+1)
+        name, idx = dataset_idx[i]
+      label = int(np.argmax(labels[name][idx])+1)
       wid_label = int(np.where(label<=10, 0, 1))
 
-      s1_data = s1[idx]
-      s2_data = s2[idx]
+      s1_data = s1[name][idx]
+      s2_data = s2[name][idx]
       img_data = preprocess_fn(s1_data, s2_data)
       img_data = np.reshape(img_data,[-1]).astype(np.float32)
 
+      name = name.encode()
       example = tf.train.Example(features=tf.train.Features(feature={
           'data': _float_feature(img_data),
           'class': _int64_feature(wid_label),
           'label': _int64_feature(label),
+          'name': _bytes_feature(name),
           'idx': _int64_feature(int(idx))
       }))
       writer.write(example.SerializeToString())
     sys.stdout.write('\n')
     sys.stdout.flush()
 
-def convert_dataset_balance(dataset, s1, s2, labels, preprocess_fn, dataset_idx=None, class_num=None):
+def convert_dataset_balance(dataset, s1, s2, labels, preprocess_fn, dataset_idx, class_num):
   sys.stdout.write('Processing ' + dataset + '\n')
   sys.stdout.flush()
-  if dataset_idx is None:
-    class_num = np.sum(labels, axis=0)
-    dataset_idx = []
-    for i in range(_NUM_CLASSES):
-      dataset_idx.append(np.where(labels[:,i])[0])
   per_class_num = np.max(class_num)
 
   sys.stdout.write('Number of samples: %d\n' % (_NUM_CLASSES*per_class_num))
@@ -106,24 +109,21 @@ def convert_dataset_balance(dataset, s1, s2, labels, preprocess_fn, dataset_idx=
           i + 1, per_class_num, shard_id))
       sys.stdout.flush()
       for j in range(_NUM_CLASSES):
-        try:
-          idx = dataset_idx[j][i]
-        except:
-          idx = dataset_idx[j][np.random.randint(class_num[j])]
-
-        label = int(np.argmax(labels[idx])+1)
+        name, idx = dataset_idx[j][i%class_num[j]]
+        label = int(np.argmax(labels[name][idx])+1)
         if label != (j+1):
           raise RuntimeError('Label is wrong.')
         wid_label = int(np.where(label<=10, 0, 1))
-        s1_data = s1[idx]
-        s2_data = s2[idx]
+        s1_data = s1[name][idx]
+        s2_data = s2[name][idx]
         img_data = preprocess_fn(s1_data, s2_data)
         img_data = np.reshape(img_data, [-1]).astype(np.float32)
-
+        name = name.encode()
         example = tf.train.Example(features=tf.train.Features(feature={
             'data': _float_feature(img_data),
             'class': _int64_feature(wid_label),
             'label': _int64_feature(label),
+            'name': _bytes_feature(name),
             'idx': _int64_feature(int(idx))
         }))
         writer.write(example.SerializeToString())
@@ -131,7 +131,7 @@ def convert_dataset_balance(dataset, s1, s2, labels, preprocess_fn, dataset_idx=
     sys.stdout.flush()
 
 
-def _split_train_val(labels, split_factor):
+def _split_train_val(labels, split_factor, dataset_name='default'):
   class_num_train = []
   train_dataset_idx = []
   val_dataset_idx = []
@@ -140,9 +140,13 @@ def _split_train_val(labels, split_factor):
     np.random.shuffle(idxs)
     num_train = int(split_factor*len(idxs))
     class_num_train.append(num_train)
-    train_dataset_idx.append(idxs[:num_train])
+    train_dataset_idx.append(list(idxs[:num_train]))
     val_dataset_idx += list(idxs[num_train:])
-  return val_dataset_idx, train_dataset_idx, class_num_train
+  val_dataset_idx = [(dataset_name, idx) for idx in val_dataset_idx]
+  train_dataset_class_idx = []
+  for class_idx in train_dataset_idx:
+    train_dataset_class_idx.append([(dataset_name, idx) for idx in class_idx])
+  return val_dataset_idx, train_dataset_class_idx, class_num_train
 
 
 def main():
@@ -162,19 +166,25 @@ def main():
   s1_validation = fid_validation['sen1']
   s2_validation = fid_validation['sen2']
   label_validation = fid_validation['label']
-  
-  val_train, train_train, num_train_train = _split_train_val(label_training, FLAGS.split_factor)
-  val_val, train_val, num_train_val = _split_train_val(label_validation, FLAGS.split_factor)
+  s1 = {'training': s1_training, 'validation':s1_validation}
+  s2 = {'training': s2_training, 'validation':s2_validation}
+  label = {'training': label_training, 'validation':label_validation}
+  val_train, train_train, num_train_train = _split_train_val(label_training, FLAGS.split_factor, 'training')
+  val_val, train_val, num_train_val = _split_train_val(label_validation, FLAGS.split_factor, 'validation')
 
-  convert_dataset('oritrain', s1_training, s2_training, label_training, preprocess_fn)
-  convert_dataset('orival', s1_validation, s2_validation, label_validation, preprocess_fn)
-  convert_dataset_balance('train-val', s1_validation, s2_validation, label_validation,
-                          preprocess_fn, train_val, num_train_val)
-  convert_dataset('val-train', s1_training, s2_training, label_training, preprocess_fn, val_train)
-  convert_dataset('val-val', s1_validation, s2_validation, label_validation,
-                  preprocess_fn, val_val, num_shares=1)
-  convert_dataset_balance('train-train', s1_training, s2_training, label_training,
-                          preprocess_fn, train_train, num_train_train)
+  val_idx = val_train + val_val
+  shuffle(val_idx)
+  train_class_idx = []
+  for i in range(_NUM_CLASSES):
+    train_idx = train_train[i]+train_val[i]
+    shuffle(train_idx)
+    train_class_idx.append(train_idx)
+  class_num = np.add(num_train_train, num_train_val)
+
+  convert_dataset('training', s1, s2, label, preprocess_fn)
+  convert_dataset('validation', s1, s2, label, preprocess_fn)
+  convert_dataset_balance('train', s1, s2, label, preprocess_fn, train_class_idx, class_num)
+  convert_dataset('val', s1, s2, label, preprocess_fn, val_idx)
 
 if __name__ == '__main__':
   main()
