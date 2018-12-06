@@ -24,7 +24,7 @@ flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of 
 flags.DEFINE_string('dataset', 'name', 'Name of the dataset.')
 flags.DEFINE_string('eval_split', 'val',
                     'Which split of the dataset used for evaluation')
-flags.DEFINE_integer('eval_interval_secs', 60 * 5,
+flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
 flags.DEFINE_integer('max_number_of_evaluations', 500,
                      'Maximum number of eval iterations. Will loop '
@@ -34,22 +34,26 @@ flags.DEFINE_integer('output_stride', 16,
 
 FLAGS = flags.FLAGS
 
-def metrics(logits, labels):
+def metrics(predictions, labels, predictions_l=None, labels_l=None):
   """Specify the metrics for eval.
   Args:
-    logits: Logits output from the graph.
+    predictions: Predictions output from the graph.
     labels: Ground truth labels for inputs.
   Returns:
      Eval Op for the graph.
   """
-  predictions = tf.argmax(logits, axis=1)
+  predictions = tf.argmax(predictions, axis=1)
   predictions = tf.reshape(predictions, shape=[-1])
   labels = tf.reshape(labels, shape=[-1])
 
   # Define the evaluation metric.
   metric_map = {}
   metric_map['accuracy'] = tf.metrics.accuracy(labels, predictions)
-
+  if predictions_l is not None:
+    predictions_l = tf.argmax(predictions_l, axis=1)
+    predictions_l = tf.reshape(predictions_l, shape=[-1])
+    labels_l = tf.reshape(labels_l, shape=[-1])
+    metric_map['accuracy_l'] = tf.metrics.accuracy(labels_l, predictions_l)
   metrics_to_values, metrics_to_updates = (
       tf.contrib.metrics.aggregate_metric_map(metric_map))
 
@@ -69,15 +73,23 @@ def eval_model():
                                        FLAGS.image_size, FLAGS.batch_size, is_training=False)
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
+    wid_labels = tf.identity(samples['class'], name='class')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
-    _, end_points = model.get_logits(
-        inputs,
+    net, end_points = model.get_features(
+        inputs[:,:,:,3:],
         model_options=model_options,
-        num_classes=FLAGS.num_classes,
+        weight_decay=FLAGS.weight_decay,
         is_training=False,
         fine_tune_batch_norm=False)
 
-    eval_ops = metrics(end_points['Predictions'], labels)
+    if FLAGS.hierarchical_cls:
+      end_points = model.hierarchical_classification(net, end_points, is_training=False)
+      eval_ops = metrics(end_points['Predictions'], labels, end_points['Prediction_low'], wid_labels)
+    else:
+      _, end_points = model.classification(net, end_points, 
+                                           num_classes=FLAGS.num_classes,
+                                           is_training=False)
+      eval_ops = metrics(end_points['Predictions'], labels)
     #num_samples = 1000
     num_batches = math.ceil(num_samples / float(FLAGS.batch_size))
     tf.logging.info('Eval num images %d', num_samples)

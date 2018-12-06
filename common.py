@@ -20,6 +20,8 @@ flags.DEFINE_multi_integer('multi_grid', [1, 1, 1],
 flags.DEFINE_float('depth_multiplier', 1.0,
                    'Multiplier for the depth (number of channels) for all '
                    'convolution ops used in MobileNet.')
+flags.DEFINE_boolean('hierarchical_cls', True,
+                     'Whether to apply hierarchical classification.')
 
 FLAGS = flags.FLAGS
 

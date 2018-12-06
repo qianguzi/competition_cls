@@ -16,7 +16,7 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
-flags.DEFINE_integer('batch_size', 64, 'Batch size')
+flags.DEFINE_integer('batch_size', 96, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 1500000,
                      'Number of training steps to perform before stopping')
 flags.DEFINE_integer('image_size', 96, 'Input image resolution')
@@ -28,12 +28,12 @@ flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of 
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'name', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'train',
+flags.DEFINE_string('train_split', 'val',
                     'Which split of the dataset to be used for training')
-flags.DEFINE_integer('log_every_n_steps', 50, 'Number of steps per log')
+flags.DEFINE_integer('log_every_n_steps', 20, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
                      'How often to save summaries, secs')
-flags.DEFINE_integer('save_interval_secs', 300,
+flags.DEFINE_integer('save_interval_secs', 360,
                      'How often to save checkpoints, secs')
 # Settings for training strategy.
 flags.DEFINE_enum('learning_policy', 'poly', ['poly', 'step'],
@@ -42,7 +42,7 @@ flags.DEFINE_enum('learning_policy', 'poly', ['poly', 'step'],
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
 flags.DEFINE_float('base_learning_rate', .0001,
                    'The base learning rate for model training.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.1,
+flags.DEFINE_float('learning_rate_decay_factor', 0.94,
                    'The rate to decay the base learning rate.')
 flags.DEFINE_integer('learning_rate_decay_step', 10000,
                      'Decay the base learning rate at a fixed step.')
@@ -80,17 +80,26 @@ def build_model():
                                        FLAGS.image_size, FLAGS.batch_size, is_training=True)
     inputs = tf.identity(samples['data'], name='data')
     labels = tf.identity(samples['label'], name='label')
+    wid_labels = tf.identity(samples['class'], name='class')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
-    logits, _ = model.get_logits(
-        inputs,
+    net, end_points = model.get_features(
+        inputs[:,:,:,3:],
         model_options=model_options,
-        num_classes=FLAGS.num_classes,
         weight_decay=FLAGS.weight_decay,
         is_training=True,
         fine_tune_batch_norm=FLAGS.fine_tune_batch_norm)
     one_hot_labels = slim.one_hot_encoding(labels, FLAGS.num_classes, on_value=1.0, off_value=0.0)
-    tf.losses.softmax_cross_entropy(one_hot_labels, logits)
-    
+    if FLAGS.hierarchical_cls:
+      one_hot_wid_labels = slim.one_hot_encoding(wid_labels, 2, on_value=1.0, off_value=0.0)
+      end_points = model.hierarchical_classification(net, end_points, is_training=True)
+      tf.losses.log_loss(one_hot_labels, end_points['Predictions'])
+      tf.losses.softmax_cross_entropy(one_hot_wid_labels, end_points['Low_logits'])
+    else:
+      logits, _ = model.classification(net, end_points, 
+                                       num_classes=FLAGS.num_classes,
+                                       is_training=True)
+      tf.losses.softmax_cross_entropy(one_hot_labels, logits)
+
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     # Gather initial summaries.
@@ -105,19 +114,16 @@ def build_model():
     opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
-    total_losses = []
-    softmax_cross_entropy_loss = tf.get_collection(tf.GraphKeys.LOSSES)
-    softmax_cross_entropy_loss = tf.add_n(softmax_cross_entropy_loss,
-                                          name='softmax_cross_entropy_loss')
-    summaries.add(tf.summary.scalar('losses/softmax_cross_entropy_loss',
-                                    softmax_cross_entropy_loss))
-    total_losses.append(softmax_cross_entropy_loss)
+    cls_loss = tf.get_collection(tf.GraphKeys.LOSSES)
+    for loss in cls_loss:
+      summaries.add(tf.summary.scalar('losses/%s'%(loss.op.name), loss))
+    cls_loss = tf.add_n(cls_loss, name='cls_loss')
+    summaries.add(tf.summary.scalar('losses/cls_loss', cls_loss))
     regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     regularization_loss = tf.add_n(regularization_loss, name='regularization_loss')
     summaries.add(tf.summary.scalar('losses/regularization_loss', regularization_loss))
-    total_losses.append(regularization_loss)
 
-    total_loss = tf.add_n(total_losses, name='total_loss')
+    total_loss = tf.add(cls_loss, regularization_loss, name='total_loss')
     grads_and_vars = opt.compute_gradients(total_loss)
 
     total_loss = tf.check_numerics(total_loss, 'LossTensor is inf or nan.')

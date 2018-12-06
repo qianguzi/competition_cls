@@ -9,7 +9,7 @@ from tensorflow.python.tools import freeze_graph
 
 from net.mobilenet import mobilenet_v2
 from dataset import data_augmentation
-import common
+import common, model
 
 flags = tf.app.flags
 
@@ -38,13 +38,20 @@ def main(unused_argv):
     inputs = data_augmentation.preprocess_image(
         input_image, FLAGS.image_size, FLAGS.image_size, is_training=False)
     inputs = tf.expand_dims(inputs, 0)
-    with tf.contrib.slim.arg_scope(mobilenet_v2.training_scope(is_training=False)):
-      _, end_points = mobilenet_v2.mobilenet(
-          inputs[:,:,:,3:],
-          is_training=False,
-          depth_multiplier=FLAGS.depth_multiplier,
-          num_classes=FLAGS.num_classes,
-          finegrain_classification_mode=True)
+    model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
+    net, end_points = model.get_features(
+        inputs[:,:,:,3:],
+        model_options=model_options,
+        weight_decay=FLAGS.weight_decay,
+        is_training=False,
+        fine_tune_batch_norm=False)
+
+    if FLAGS.hierarchical_cls:
+      end_points = model.hierarchical_classification(net, end_points, is_training=False)
+    else:
+      _, end_points = model.classification(net, end_points, 
+                                           num_classes=FLAGS.num_classes,
+                                           is_training=False)
 
     prediction = tf.argmax(end_points['Predictions'], 1)
     prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)
