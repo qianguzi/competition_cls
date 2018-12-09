@@ -15,10 +15,10 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-171766', 'Checkpoint path')
+flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-803207', 'Checkpoint path')
 flags.DEFINE_string('export_path', './result/model.pb',
                     'Path to output Tensorflow frozen graph.')
-flags.DEFINE_integer('channel', 6, 'Number of channel.')
+flags.DEFINE_integer('channel', 7, 'Number of channel.')
 flags.DEFINE_integer('image_size', 96, 'Input image resolution')
 flags.DEFINE_integer('output_stride', 16,
                      'The ratio of input to output spatial resolution.')
@@ -42,7 +42,6 @@ def main(unused_argv):
     net, end_points = model.get_features(
         inputs[:,:,:,3:],
         model_options=model_options,
-        weight_decay=FLAGS.weight_decay,
         is_training=False,
         fine_tune_batch_norm=False)
 

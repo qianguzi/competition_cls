@@ -34,26 +34,29 @@ flags.DEFINE_integer('output_stride', 16,
 
 FLAGS = flags.FLAGS
 
-def metrics(predictions, labels, predictions_l=None, labels_l=None):
+def metrics(end_points, labels, wid_labels=None):
   """Specify the metrics for eval.
   Args:
-    predictions: Predictions output from the graph.
+    end_points: Include predictions output from the graph.
     labels: Ground truth labels for inputs.
   Returns:
      Eval Op for the graph.
   """
-  predictions = tf.argmax(predictions, axis=1)
+  predictions = tf.argmax(end_points['Predictions'], axis=1)
   predictions = tf.reshape(predictions, shape=[-1])
   labels = tf.reshape(labels, shape=[-1])
 
   # Define the evaluation metric.
   metric_map = {}
   metric_map['accuracy'] = tf.metrics.accuracy(labels, predictions)
-  if predictions_l is not None:
-    predictions_l = tf.argmax(predictions_l, axis=1)
+  if FLAGS.hierarchical_cls:
+    predictions_l = tf.argmax(end_points['Prediction_low'], axis=1)
     predictions_l = tf.reshape(predictions_l, shape=[-1])
-    labels_l = tf.reshape(labels_l, shape=[-1])
-    metric_map['accuracy_l'] = tf.metrics.accuracy(labels_l, predictions_l)
+    wid_labels = tf.reshape(wid_labels, shape=[-1])
+    metric_map['accuracy_l'] = tf.metrics.accuracy(wid_labels, predictions_l)
+    predictions_h = tf.argmax(end_points['Prediction_high'], axis=1)
+    predictions_h = tf.reshape(predictions_h, shape=[-1])
+    metric_map['accuracy_h'] = tf.metrics.accuracy(labels, predictions_h)
   metrics_to_values, metrics_to_updates = (
       tf.contrib.metrics.aggregate_metric_map(metric_map))
 
@@ -78,18 +81,16 @@ def eval_model():
     net, end_points = model.get_features(
         inputs[:,:,:,3:],
         model_options=model_options,
-        weight_decay=FLAGS.weight_decay,
         is_training=False,
         fine_tune_batch_norm=False)
 
     if FLAGS.hierarchical_cls:
       end_points = model.hierarchical_classification(net, end_points, is_training=False)
-      eval_ops = metrics(end_points['Predictions'], labels, end_points['Prediction_low'], wid_labels)
     else:
       _, end_points = model.classification(net, end_points, 
                                            num_classes=FLAGS.num_classes,
                                            is_training=False)
-      eval_ops = metrics(end_points['Predictions'], labels)
+    eval_ops = metrics(end_points, labels, wid_labels)
     #num_samples = 1000
     num_batches = math.ceil(num_samples / float(FLAGS.batch_size))
     tf.logging.info('Eval num images %d', num_samples)

@@ -22,13 +22,13 @@ flags.DEFINE_integer('number_of_steps', 1500000,
 flags.DEFINE_integer('image_size', 96, 'Input image resolution')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
-flags.DEFINE_string('train_logdir', './train_log',
+flags.DEFINE_string('train_dir', './train_log',
                     'Directory for writing training checkpoints and logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'name', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'val',
+flags.DEFINE_string('train_split', 'train',
                     'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 20, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
@@ -36,13 +36,13 @@ flags.DEFINE_integer('save_summaries_secs', 60,
 flags.DEFINE_integer('save_interval_secs', 360,
                      'How often to save checkpoints, secs')
 # Settings for training strategy.
-flags.DEFINE_enum('learning_policy', 'poly', ['poly', 'step'],
+flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
                   'Learning rate policy for training.')
 # Use 0.007 when training on PASCAL augmented training set, train_aug. When
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
 flags.DEFINE_float('base_learning_rate', .0001,
                    'The base learning rate for model training.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.94,
+flags.DEFINE_float('learning_rate_decay_factor', 0.98,
                    'The rate to decay the base learning rate.')
 flags.DEFINE_integer('learning_rate_decay_step', 10000,
                      'Decay the base learning rate at a fixed step.')
@@ -55,7 +55,7 @@ flags.DEFINE_float('slow_start_learning_rate', 1e-4,
 flags.DEFINE_float('momentum', 0.9, 'The momentum value to use')
 # For weight_decay, use 0.00004 for MobileNet-V2 or Xcpetion model variants.
 # Use 0.0001 for ResNet model variants.
-flags.DEFINE_float('weight_decay', 0.0001,
+flags.DEFINE_float('weight_decay', 0.00004,
                    'The value of the weight decay for training.')
 # Set to True if one wants to fine-tune the batch norm parameters in DeepLabv3.
 # Set to False and use small batch size to save GPU memory.
@@ -83,7 +83,7 @@ def build_model():
     wid_labels = tf.identity(samples['class'], name='class')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
-        inputs[:,:,:,3:],
+        inputs,
         model_options=model_options,
         weight_decay=FLAGS.weight_decay,
         is_training=True,
@@ -92,7 +92,7 @@ def build_model():
     if FLAGS.hierarchical_cls:
       one_hot_wid_labels = slim.one_hot_encoding(wid_labels, 2, on_value=1.0, off_value=0.0)
       end_points = model.hierarchical_classification(net, end_points, is_training=True)
-      tf.losses.log_loss(one_hot_labels, end_points['Predictions'])
+      tf.losses.softmax_cross_entropy(one_hot_labels, end_points['High_logits'])
       tf.losses.softmax_cross_entropy(one_hot_wid_labels, end_points['Low_logits'])
     else:
       logits, _ = model.classification(net, end_points, 
@@ -168,13 +168,13 @@ def get_checkpoint_init_fn():
 def train_model():
   """Trains model."""
   tf.logging.set_verbosity(tf.logging.INFO)
-  tf.gfile.MakeDirs(FLAGS.train_logdir)
+  tf.gfile.MakeDirs(FLAGS.train_dir)
   tf.logging.info('Training on %s set', FLAGS.train_split)
   g, train_tensor, summary_op = build_model()
   with g.as_default():
     slim.learning.train(
         train_tensor,
-        FLAGS.train_logdir,
+        FLAGS.train_dir,
         is_chief=(FLAGS.task == 0),
         master=FLAGS.master,
         log_every_n_steps=FLAGS.log_every_n_steps,
