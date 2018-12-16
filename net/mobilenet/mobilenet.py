@@ -23,9 +23,7 @@ import copy
 import os
 
 import tensorflow as tf
-
-
-slim = tf.contrib.slim
+from tensorflow.contrib import slim
 
 
 @slim.add_arg_scope

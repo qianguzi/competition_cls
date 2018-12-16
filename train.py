@@ -9,7 +9,7 @@ from tensorflow.contrib import slim
 import common, model
 from utils import train_utils
 from net.mobilenet import mobilenet_v2
-from dataset.get_dataset import get_dataset
+from dataset.get_lcz_dataset import get_dataset
 
 flags = tf.app.flags
 
@@ -55,7 +55,7 @@ flags.DEFINE_float('slow_start_learning_rate', 1e-4,
 flags.DEFINE_float('momentum', 0.9, 'The momentum value to use')
 # For weight_decay, use 0.00004 for MobileNet-V2 or Xcpetion model variants.
 # Use 0.0001 for ResNet model variants.
-flags.DEFINE_float('weight_decay', 0.00004,
+flags.DEFINE_float('weight_decay', 0.0001,
                    'The value of the weight decay for training.')
 # Set to True if one wants to fine-tune the batch norm parameters in DeepLabv3.
 # Set to False and use small batch size to save GPU memory.
@@ -184,7 +184,8 @@ def train_model():
         save_interval_secs=FLAGS.save_interval_secs,
         init_fn=get_checkpoint_init_fn(),
         summary_op=summary_op,
-        global_step=tf.train.get_global_step())
+        global_step=tf.train.get_global_step(),
+        saver=tf.train.Saver(max_to_keep=50))
 
 
 def main(unused_arg):

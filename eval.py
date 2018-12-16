@@ -9,7 +9,7 @@ from tensorflow.contrib import slim
 
 import common, model
 from net.mobilenet import mobilenet_v2
-from dataset.get_dataset import get_dataset
+from dataset.get_lcz_dataset import get_dataset
 
 flags = tf.app.flags
 
@@ -61,7 +61,7 @@ def metrics(end_points, labels, wid_labels=None):
       tf.contrib.metrics.aggregate_metric_map(metric_map))
 
   for metric_name, metric_value in six.iteritems(metrics_to_values):
-    slim.summaries.add_scalar_summary(metric_value, metric_name, print_summary=True)
+    slim.summaries.add_scalar_summary(metric_value, metric_name, prefix='accuracy', print_summary=True)
   return list(metrics_to_updates.values())
 
 

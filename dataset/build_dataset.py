@@ -1,190 +1,122 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import sys
-import os, cv2
-import math, h5py
-import numpy as np
+import collections
+import six
 import tensorflow as tf
-from random import shuffle
 
-import preprocess.first as first
-import preprocess.default as default
 
-flags = tf.app.flags
-#/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
-flags.DEFINE_string('dataset_folder', '/home/data/lcz', 'Folder containing dataset.')
-flags.DEFINE_string('output_dir', '/media/jun/data/lcz/tfrecord', 'Output location of dataset.')
-flags.DEFINE_string('preprocess_method', 'name', 'The image data preprocess term.')
-flags.DEFINE_float('split_factor', 0.98, 'The image data preprocess term.')
-FLAGS = flags.FLAGS
-
-_NUM_CLASSES = 17
-_NUM_SHARDS = 10
-_PREPROCESS_METHOD = {
-    'default': default.default_preprocess,
-    'first': first.first_preprocess,
-    'multilabel': default.new_preprocess,
-    'name': default.new_preprocess, 
+# A map from image format to expected data format.
+_IMAGE_FORMAT_MAP = {
+    'jpg': 'jpeg',
+    'jpeg': 'jpeg',
+    'png': 'png',
 }
 
-def _bytes_feature(value):
-    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+class ImageReader(object):
+  """Helper class that provides TensorFlow image coding utilities."""
 
-def _int64_feature(value):
-  return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+  def __init__(self, image_format='jpeg', channels=3):
+    """Class constructor.
 
-def _float_feature(value):
-  return tf.train.Feature(float_list=tf.train.FloatList(value=value))
+    Args:
+      image_format: Image format. Only 'jpeg', 'jpg', or 'png' are supported.
+      channels: Image channels.
+    """
+    with tf.Graph().as_default():
+      self._decode_data = tf.placeholder(dtype=tf.string)
+      self._image_format = image_format
+      self._session = tf.Session()
+      if self._image_format in ('jpeg', 'jpg'):
+        self._decode = tf.image.decode_jpeg(self._decode_data,
+                                            channels=channels)
+      elif self._image_format == 'png':
+        self._decode = tf.image.decode_png(self._decode_data,
+                                           channels=channels)
 
-def convert_dataset(dataset, s1, s2, labels, preprocess_fn, dataset_idx=None, num_shares=1):
-  sys.stdout.write('Processing ' + dataset + '\n')
-  sys.stdout.flush()
+  def read_image_dims(self, image_data):
+    """Reads the image dimensions.
 
-  if dataset_idx is None:
-    num_samples = int(labels[dataset].shape[0])
-  else:
-    num_samples = len(dataset_idx)
-  sys.stdout.write('Number of samples: %d\n' % (num_samples))
-  sys.stdout.flush()
+    Args:
+      image_data: string of image data.
 
-  num_per_shard = int(math.ceil(num_samples / float(num_shares)))
-  for shard_id in range(num_shares):
-    output_filename = os.path.join(
-        FLAGS.output_dir,
-        FLAGS.preprocess_method,
-        '%s-%05d-of-%05d.tfrecord' % (dataset, shard_id, num_shares))
-    writer = tf.python_io.TFRecordWriter(output_filename)
-    start_idx = shard_id * num_per_shard
-    end_idx = min((shard_id + 1) * num_per_shard, num_samples)
-    for i in range(start_idx, end_idx):
-      sys.stdout.write('\r>> Converting image %d/%d shard %d' % (
-          i + 1, num_samples, shard_id))
-      sys.stdout.flush()
-      if dataset_idx is None:
-        name = dataset
-        idx = i
-      else:
-        name, idx = dataset_idx[i]
-      label = int(np.argmax(labels[name][idx])+1)
-      wid_label = int(np.where(label<=10, 0, 1))
+    Returns:
+      image_height and image_width.
+    """
+    image = self.decode_image(image_data)
+    return image.shape[:2]
 
-      s1_data = s1[name][idx]
-      s2_data = s2[name][idx]
-      img_data = preprocess_fn(s1_data, s2_data)
-      img_data = np.reshape(img_data,[-1]).astype(np.float32)
+  def decode_image(self, image_data):
+    """Decodes the image data string.
 
-      name = name.encode()
-      example = tf.train.Example(features=tf.train.Features(feature={
-          'data': _float_feature(img_data),
-          'class': _int64_feature(wid_label),
-          'label': _int64_feature(label),
-          'name': _bytes_feature(name),
-          'idx': _int64_feature(int(idx))
-      }))
-      writer.write(example.SerializeToString())
-    sys.stdout.write('\n')
-    sys.stdout.flush()
+    Args:
+      image_data: string of image data.
 
-def convert_dataset_balance(dataset, s1, s2, labels, preprocess_fn, dataset_idx, class_num):
-  sys.stdout.write('Processing ' + dataset + '\n')
-  sys.stdout.flush()
-  per_class_num = np.max(class_num)
+    Returns:
+      Decoded image data.
 
-  sys.stdout.write('Number of samples: %d\n' % (_NUM_CLASSES*per_class_num))
-  sys.stdout.flush()
+    Raises:
+      ValueError: Value of image channels not supported.
+    """
+    image = self._session.run(self._decode,
+                              feed_dict={self._decode_data: image_data})
+    if len(image.shape) != 3 or image.shape[2] not in (1, 3):
+      raise ValueError('The image channels not supported.')
 
-  num_per_shard = int(math.ceil(per_class_num/float(_NUM_SHARDS)))
-  for shard_id in range(_NUM_SHARDS):
-    output_filename = os.path.join(
-        FLAGS.output_dir,
-        FLAGS.preprocess_method,
-        '%s-%05d-of-%05d.tfrecord' % (dataset, shard_id, _NUM_SHARDS))
-    writer = tf.python_io.TFRecordWriter(output_filename)
-    start_idx = shard_id * num_per_shard
-    end_idx = min((shard_id+1) * num_per_shard, per_class_num)
-    for i in range(start_idx, end_idx):
-      sys.stdout.write('\r>> Converting batch of images %d/%d shard %d' % (
-          i + 1, per_class_num, shard_id))
-      sys.stdout.flush()
-      for j in range(_NUM_CLASSES):
-        name, idx = dataset_idx[j][i%class_num[j]]
-        label = int(np.argmax(labels[name][idx])+1)
-        if label != (j+1):
-          raise RuntimeError('Label is wrong.')
-        wid_label = int(np.where(label<=10, 0, 1))
-        s1_data = s1[name][idx]
-        s2_data = s2[name][idx]
-        img_data = preprocess_fn(s1_data, s2_data)
-        img_data = np.reshape(img_data, [-1]).astype(np.float32)
-        name = name.encode()
-        example = tf.train.Example(features=tf.train.Features(feature={
-            'data': _float_feature(img_data),
-            'class': _int64_feature(wid_label),
-            'label': _int64_feature(label),
-            'name': _bytes_feature(name),
-            'idx': _int64_feature(int(idx))
-        }))
-        writer.write(example.SerializeToString())
-    sys.stdout.write('\n')
-    sys.stdout.flush()
+    return image
 
 
-def _split_train_val(labels, split_factor, dataset_name='default'):
-  class_num_train = []
-  train_dataset_idx = []
-  val_dataset_idx = []
-  for i in range(_NUM_CLASSES):
-    idxs = np.where(labels[:,i])[0]
-    np.random.shuffle(idxs)
-    num_train = int(split_factor*len(idxs))
-    class_num_train.append(num_train)
-    train_dataset_idx.append(list(idxs[:num_train]))
-    val_dataset_idx += list(idxs[num_train:])
-  val_dataset_idx = [(dataset_name, idx) for idx in val_dataset_idx]
-  train_dataset_class_idx = []
-  for class_idx in train_dataset_idx:
-    train_dataset_class_idx.append([(dataset_name, idx) for idx in class_idx])
-  return val_dataset_idx, train_dataset_class_idx, class_num_train
+def _int64_list_feature(values):
+  """Returns a TF-Feature of int64_list.
+
+  Args:
+    values: A scalar or list of values.
+
+  Returns:
+    A TF-Feature.
+  """
+  if not isinstance(values, collections.Iterable):
+    values = [values]
+
+  return tf.train.Feature(int64_list=tf.train.Int64List(value=values))
 
 
-def main():
-  if FLAGS.preprocess_method not in _PREPROCESS_METHOD:
-    raise ValueError('The specified preprocess method is not supported yet.')
-  preprocess_fn = _PREPROCESS_METHOD[FLAGS.preprocess_method]
-  tf.gfile.MakeDirs(FLAGS.output_dir)
-  tf.gfile.MakeDirs(os.path.join(FLAGS.output_dir, FLAGS.preprocess_method))
+def _float_list_feature(values):
+  """Returns a TF-Feature of float_list.
 
-  path_training = os.path.join(FLAGS.dataset_folder, 'training.h5')
-  path_validation = os.path.join(FLAGS.dataset_folder, 'validation.h5')
-  fid_training = h5py.File(path_training,'r')
-  s1_training = fid_training['sen1']
-  s2_training = fid_training['sen2']
-  label_training = fid_training['label']
-  fid_validation = h5py.File(path_validation,'r')
-  s1_validation = fid_validation['sen1']
-  s2_validation = fid_validation['sen2']
-  label_validation = fid_validation['label']
-  s1 = {'training': s1_training, 'validation':s1_validation}
-  s2 = {'training': s2_training, 'validation':s2_validation}
-  label = {'training': label_training, 'validation':label_validation}
-  val_train, train_train, num_train_train = _split_train_val(label_training, FLAGS.split_factor, 'training')
-  val_val, train_val, num_train_val = _split_train_val(label_validation, FLAGS.split_factor, 'validation')
+  Args:
+    values: A scalar or list of values.
 
-  val_idx = val_train + val_val
-  shuffle(val_idx)
-  train_class_idx = []
-  for i in range(_NUM_CLASSES):
-    train_idx = train_train[i]+train_val[i]
-    shuffle(train_idx)
-    train_class_idx.append(train_idx)
-  class_num = np.add(num_train_train, num_train_val)
+  Returns:
+    A TF-Feature.
+  """
+  if not isinstance(values, collections.Iterable):
+    values = [values]
 
-  convert_dataset('training', s1, s2, label, preprocess_fn)
-  convert_dataset('validation', s1, s2, label, preprocess_fn)
-  convert_dataset_balance('train', s1, s2, label, preprocess_fn, train_class_idx, class_num)
-  convert_dataset('val', s1, s2, label, preprocess_fn, val_idx)
+  return tf.train.Feature(float_list=tf.train.FloatList(value=values))
 
-if __name__ == '__main__':
-  main()
+
+def _bytes_list_feature(values):
+  """Returns a TF-Feature of bytes.
+
+  Args:
+    values: A string.
+
+  Returns:
+    A TF-Feature.
+  """
+  def norm2bytes(value):
+    return value.encode() if isinstance(value, str) and six.PY3 else value
+
+  return tf.train.Feature(
+      bytes_list=tf.train.BytesList(value=[norm2bytes(values)]))
+
+
+def protein_to_tfexample(image_data_green, image_data_red,
+                         image_data_blue, image_data_yellow,
+                         image_label, image_id, image_format):
+  return tf.train.Example(features=tf.train.Features(feature={
+            'green': _bytes_list_feature(image_data_green),
+            'red': _bytes_list_feature(image_data_red),
+            'blue': _bytes_list_feature(image_data_blue),
+            'yellow': _bytes_list_feature(image_data_yellow),
+            'label': _int64_list_feature(image_label),
+            'filename': _bytes_list_feature(image_id),
+            'format': _bytes_list_feature(_IMAGE_FORMAT_MAP[image_format]),}))
