@@ -15,7 +15,7 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-1583198', 'Checkpoint path')
+flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-1850888', 'Checkpoint path')
 flags.DEFINE_string('export_path', './result/model.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_integer('channel', 7, 'Number of channel.')
@@ -52,7 +52,7 @@ def main(unused_argv):
                                            num_classes=FLAGS.num_classes,
                                            is_training=False)
 
-    prediction = tf.argmax(end_points['Prediction_high'], 1)
+    prediction = tf.argmax(end_points['Predictions'], 1)
     prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)
     prediction = tf.identity(prediction, name=_OUTPUT_NAME)
 

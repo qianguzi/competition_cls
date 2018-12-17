@@ -9,8 +9,8 @@ import numpy as np
 import tensorflow as tf
 from random import shuffle
 
-import preprocess.first as first
-import preprocess.default as default
+from preprocess import first
+from preprocess import default
 
 flags = tf.app.flags
 #/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz

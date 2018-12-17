@@ -47,11 +47,11 @@ def distort_color(image, color_ordering=0, scope=None):
   """
   with tf.name_scope(scope, 'distort_color', [image]):
     if color_ordering == 0:
-      image = tf.image.random_brightness(image, max_delta=32. / 255.)
+      image = tf.image.random_brightness(image, max_delta=64. / 255.)
       image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
     elif color_ordering == 1:
       image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-      image = tf.image.random_brightness(image, max_delta=32. / 255.)
+      image = tf.image.random_brightness(image, max_delta=64. / 255.)
     else:
         raise ValueError('color_ordering must be in [0, 1]')
 
@@ -88,7 +88,7 @@ def preprocess_for_train(image, height, width, scope=None):
     distorted_image = apply_with_random_selector(
         image,
         lambda x, method: tf.image.resize_images(x, [height, width], method),
-        num_cases=1)
+        num_cases=4)
 
     # Randomly flip the image horizontally.
     distorted_image = tf.image.random_flip_left_right(distorted_image)

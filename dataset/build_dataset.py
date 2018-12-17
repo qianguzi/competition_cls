@@ -1,122 +1,141 @@
-import collections
-import six
+import os, sys
+import math, h5py
+import numpy as np
+import pandas as pd
 import tensorflow as tf
+from PIL import Image
+from random import shuffle
+
+import dataset_information
+
+flags = tf.app.flags
+#/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
+flags.DEFINE_enum('dataset_name', 'lcz', ['protein', 'lcz'], 'Dataset name.')
+flags.DEFINE_string('dataset_folder', '/media/jun/data', 'Folder containing dataset_name.')
+flags.DEFINE_float('split_factor', 0.99, 'The image data preprocess term.')
+FLAGS = flags.FLAGS
 
 
-# A map from image format to expected data format.
-_IMAGE_FORMAT_MAP = {
-    'jpg': 'jpeg',
-    'jpeg': 'jpeg',
-    'png': 'png',
+def convert_tfrecord_class(dataset_info, ori_data, per_class_image_ids, per_class_counts, num_shards=6):
+  dataset_dir = os.path.join(FLAGS.dataset_folder, dataset_info.dataset_name)
+  output_dir = os.path.join(FLAGS.dataset_folder, dataset_info.dataset_name, 'tfrecord')
+  tf.gfile.MakeDirs(output_dir)
+  num_samples = 0
+  split_class_list = []
+  for label_idx in range(dataset_info.num_classes):
+    label_name = dataset_info.idx_to_name[label_idx]
+    tf.gfile.MakeDirs(os.path.join(output_dir, label_name))
+    image_ids = per_class_image_ids[label_name]
+    class_counts = per_class_counts[label_name]
+    num_samples += class_counts
+    sys.stdout.write('[%d] Processing %s, number: %d\n' % (label_idx, label_name, class_counts))
+    sys.stdout.flush()
+    split_size_list = []
+    if num_shards > 0:
+      num_per_shard = int(math.ceil(class_counts/float(num_shards)))
+    else:
+      num_per_shard = int(math.ceil(class_counts*FLAGS.split_factor))
+      num_shards = 2
+    for shard_id in range(num_shards):
+      output_filename = os.path.join(
+          output_dir, label_name, 
+          '%s-%02d-of-%02d.tfrecord' % (dataset_info.dataset_name, shard_id+1, num_shards))
+      writer = tf.python_io.TFRecordWriter(output_filename)
+      start_idx = shard_id * num_per_shard
+      end_idx = min((shard_id+1)*num_per_shard, class_counts)
+      for i in range(start_idx, end_idx):
+        sys.stdout.write('\r>> Converting image %d/%d shard %d' % (
+            i+1, class_counts, shard_id+1))
+        sys.stdout.flush()
+        image_id = image_ids[i]
+        example = dataset_info.data_to_tfexample_fn(
+            dataset_info, ori_data, image_id, label_idx, dataset_dir)
+        writer.write(example.SerializeToString())
+      split_size = end_idx-start_idx
+      split_size_list.append(split_size)
+      sys.stdout.write('\n--- Split size: %d ---\n'%(split_size))
+      sys.stdout.flush()
+    split_class_list.append(split_size_list)
+  total_split_size = np.sum(split_class_list, 0)
+  print('[*] Total split size: ', total_split_size)
+  sys.stdout.write('[*] Number of total samples: %d\n' % (num_samples))
+  sys.stdout.flush()
+
+
+def build_protein_dataset():
+  train_data = pd.read_csv(os.path.join(FLAGS.dataset_folder, 'protein', 'train.csv'))
+  dataset_info = dataset_information.DATASETS_INFORMATION['protein']
+  for key in dataset_info.idx_to_name.keys():
+    train_data[dataset_info.idx_to_name[key]] = 0
+  def fill_targets(row):
+    row.Target = np.array(row.Target.split(' ')).astype(np.int)
+    for num in row.Target:
+      name = dataset_info.idx_to_name[int(num)]
+      row.loc[name] = 1
+    return row
+  train_data = train_data.apply(fill_targets, axis=1)
+  
+  per_class_counts = {}
+  per_class_image_ids = {}
+  sub_data = train_data.drop(['Target'],axis=1).copy(deep=True)
+  target_counts = sub_data.drop(['Id'],axis=1).sum(axis=0).sort_values(ascending=False)
+  for i in range(dataset_info.num_classes):
+    special_target = target_counts.keys()[-1]
+    per_class_counts[special_target] = target_counts[-1]
+    per_class_image_ids[special_target] = list(sub_data['Id'][sub_data[special_target] == 1])
+    sub_data = sub_data[sub_data[special_target] == 0].drop([special_target],axis=1)
+    target_counts = sub_data.drop(['Id'],axis=1).sum(axis=0).sort_values(ascending=False)
+
+  convert_tfrecord_class(dataset_info, train_data, per_class_image_ids, per_class_counts)
+
+
+def build_lcz_dataset():
+  dataset_info = dataset_information.DATASETS_INFORMATION['lcz']
+  path_training = os.path.join(FLAGS.dataset_folder, 'lcz', 'training.h5')
+  path_validation = os.path.join(FLAGS.dataset_folder, 'lcz', 'validation.h5')
+  fid_training = h5py.File(path_training,'r')
+  s1_training = fid_training['sen1']
+  s2_training = fid_training['sen2']
+  label_training = fid_training['label']
+  fid_validation = h5py.File(path_validation,'r')
+  s1_validation = fid_validation['sen1']
+  s2_validation = fid_validation['sen2']
+  label_validation = fid_validation['label']
+  s1 = {'training': s1_training, 'validation':s1_validation}
+  s2 = {'training': s2_training, 'validation':s2_validation}
+  label = {'training': label_training, 'validation':label_validation}
+
+  def split_dataset(labels, sub_dataset_name='default'):
+    counts = {}
+    image_ids = {}
+    for i in range(dataset_info.num_classes):
+      ids = np.where(labels[:,i])[0]
+      image_ids[dataset_info.idx_to_name[i]] = [(sub_dataset_name, idx) for idx in ids]
+      counts[dataset_info.idx_to_name[i]] = len(ids)
+    return image_ids, counts
+
+  train_image_ids, train_counts = split_dataset(label_training, 'training')
+  val_image_ids, val_counts = split_dataset(label_validation, 'validation')
+  
+  per_class_image_ids ={}
+  per_class_counts = {}
+  for class_name in train_image_ids:
+    class_ids = train_image_ids[class_name] + val_image_ids[class_name]
+    shuffle(class_ids)
+    per_class_image_ids[class_name] = class_ids
+    per_class_counts[class_name] = train_counts[class_name] + val_counts[class_name]
+
+  convert_tfrecord_class(dataset_info, [s1, s2, label], per_class_image_ids, per_class_counts, 20)
+
+
+_BUILD_DATASET_FN={
+  'protein': build_protein_dataset,
+  'lcz': build_lcz_dataset,
 }
 
-class ImageReader(object):
-  """Helper class that provides TensorFlow image coding utilities."""
-
-  def __init__(self, image_format='jpeg', channels=3):
-    """Class constructor.
-
-    Args:
-      image_format: Image format. Only 'jpeg', 'jpg', or 'png' are supported.
-      channels: Image channels.
-    """
-    with tf.Graph().as_default():
-      self._decode_data = tf.placeholder(dtype=tf.string)
-      self._image_format = image_format
-      self._session = tf.Session()
-      if self._image_format in ('jpeg', 'jpg'):
-        self._decode = tf.image.decode_jpeg(self._decode_data,
-                                            channels=channels)
-      elif self._image_format == 'png':
-        self._decode = tf.image.decode_png(self._decode_data,
-                                           channels=channels)
-
-  def read_image_dims(self, image_data):
-    """Reads the image dimensions.
-
-    Args:
-      image_data: string of image data.
-
-    Returns:
-      image_height and image_width.
-    """
-    image = self.decode_image(image_data)
-    return image.shape[:2]
-
-  def decode_image(self, image_data):
-    """Decodes the image data string.
-
-    Args:
-      image_data: string of image data.
-
-    Returns:
-      Decoded image data.
-
-    Raises:
-      ValueError: Value of image channels not supported.
-    """
-    image = self._session.run(self._decode,
-                              feed_dict={self._decode_data: image_data})
-    if len(image.shape) != 3 or image.shape[2] not in (1, 3):
-      raise ValueError('The image channels not supported.')
-
-    return image
+def main(unused_arg):
+  _BUILD_DATASET_FN[FLAGS.dataset_name]()
 
 
-def _int64_list_feature(values):
-  """Returns a TF-Feature of int64_list.
-
-  Args:
-    values: A scalar or list of values.
-
-  Returns:
-    A TF-Feature.
-  """
-  if not isinstance(values, collections.Iterable):
-    values = [values]
-
-  return tf.train.Feature(int64_list=tf.train.Int64List(value=values))
-
-
-def _float_list_feature(values):
-  """Returns a TF-Feature of float_list.
-
-  Args:
-    values: A scalar or list of values.
-
-  Returns:
-    A TF-Feature.
-  """
-  if not isinstance(values, collections.Iterable):
-    values = [values]
-
-  return tf.train.Feature(float_list=tf.train.FloatList(value=values))
-
-
-def _bytes_list_feature(values):
-  """Returns a TF-Feature of bytes.
-
-  Args:
-    values: A string.
-
-  Returns:
-    A TF-Feature.
-  """
-  def norm2bytes(value):
-    return value.encode() if isinstance(value, str) and six.PY3 else value
-
-  return tf.train.Feature(
-      bytes_list=tf.train.BytesList(value=[norm2bytes(values)]))
-
-
-def protein_to_tfexample(image_data_green, image_data_red,
-                         image_data_blue, image_data_yellow,
-                         image_label, image_id, image_format):
-  return tf.train.Example(features=tf.train.Features(feature={
-            'green': _bytes_list_feature(image_data_green),
-            'red': _bytes_list_feature(image_data_red),
-            'blue': _bytes_list_feature(image_data_blue),
-            'yellow': _bytes_list_feature(image_data_yellow),
-            'label': _int64_list_feature(image_label),
-            'filename': _bytes_list_feature(image_id),
-            'format': _bytes_list_feature(_IMAGE_FORMAT_MAP[image_format]),}))
+if __name__ == '__main__':
+  tf.app.run(main)

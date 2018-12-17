@@ -8,16 +8,16 @@ import copy, collections
 import tensorflow as tf
 
 flags = tf.app.flags
-
+#resnet_v1_50_beta
 # Flags for input preprocessing.
-flags.DEFINE_integer('num_classes', 18, 'Number of classes to distinguish')
+flags.DEFINE_integer('num_classes', 17, 'Number of classes to distinguish')
 # Model dependent flags.
-flags.DEFINE_string('model_variant', 'resnet_v1_50_beta', 'DeepLab model variant.')
+flags.DEFINE_string('model_variant', 'mobilenet_v2', 'DeepLab model variant.')
 # Defaults to None. Set multi_grid = [1, 2, 4] when using provided
 # 'resnet_v1_{50,101}_beta' checkpoints.
 flags.DEFINE_multi_integer('multi_grid', [1, 1, 1],
                            'Employ a hierarchy of atrous rates for ResNet.')
-flags.DEFINE_float('depth_multiplier', 1.4,
+flags.DEFINE_float('depth_multiplier', 1.0,
                    'Multiplier for the depth (number of channels) for all '
                    'convolution ops used in MobileNet.')
 flags.DEFINE_boolean('hierarchical_cls', True,

@@ -9,17 +9,18 @@ from tensorflow.contrib import slim
 import common, model
 from utils import train_utils
 from net.mobilenet import mobilenet_v2
-from dataset.get_lcz_dataset import get_dataset
+#from dataset.get_lcz_dataset import get_dataset
+from dataset import get_dataset
 
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
-flags.DEFINE_integer('batch_size', 96, 'Batch size')
+flags.DEFINE_integer('batch_size', 4, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 1500000,
                      'Number of training steps to perform before stopping')
-flags.DEFINE_integer('image_size', 96, 'Input image resolution')
+flags.DEFINE_integer('image_size', 64, 'Input image resolution')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_dir', './train_log',
@@ -27,8 +28,8 @@ flags.DEFINE_string('train_dir', './train_log',
 flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
-flags.DEFINE_string('dataset', 'name', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'train',
+flags.DEFINE_string('dataset', 'lcz', 'Name of the dataset.')
+flags.DEFINE_string('train_split', 'lcz-05',
                     'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 20, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
@@ -76,11 +77,17 @@ def build_model():
   g = tf.Graph()
   with g.as_default(), tf.device(
       tf.train.replica_device_setter(FLAGS.ps_tasks)):
-    samples, _ = get_dataset(FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir,
-                                       FLAGS.image_size, FLAGS.batch_size, is_training=True)
-    inputs = tf.identity(samples['data'], name='data')
+    #samples, _ = get_dataset(FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir,
+    #                         FLAGS.image_size, FLAGS.batch_size, is_training=True)
+    samples, _ = get_dataset.get_dataset(FLAGS.dataset, FLAGS.dataset_dir,
+                                         split_name=FLAGS.train_split,
+                                         is_training=True,
+                                         image_size=[FLAGS.image_size, FLAGS.image_size],
+                                         batch_size=FLAGS.batch_size,
+                                         channel=4)
+    inputs = tf.identity(samples['image'], name='image')
     labels = tf.identity(samples['label'], name='label')
-    wid_labels = tf.identity(samples['class'], name='class')
+    #wid_labels = tf.identity(samples['class'], name='class')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
         inputs,
@@ -88,17 +95,11 @@ def build_model():
         weight_decay=FLAGS.weight_decay,
         is_training=True,
         fine_tune_batch_norm=FLAGS.fine_tune_batch_norm)
-    one_hot_labels = slim.one_hot_encoding(labels, FLAGS.num_classes, on_value=1.0, off_value=0.0)
-    if FLAGS.hierarchical_cls:
-      one_hot_wid_labels = slim.one_hot_encoding(wid_labels, 2, on_value=1.0, off_value=0.0)
-      end_points = model.hierarchical_classification(net, end_points, is_training=True)
-      tf.losses.softmax_cross_entropy(one_hot_labels, end_points['High_logits'])
-      tf.losses.softmax_cross_entropy(one_hot_wid_labels, end_points['Low_logits'])
-    else:
-      logits, _ = model.classification(net, end_points, 
-                                       num_classes=FLAGS.num_classes,
-                                       is_training=True)
-      tf.losses.softmax_cross_entropy(one_hot_labels, logits)
+    #one_hot_labels = slim.one_hot_encoding(labels, FLAGS.num_classes, on_value=1.0, off_value=0.0)
+    logits, _ = model.classification(net, end_points, 
+                                     num_classes=FLAGS.num_classes,
+                                     is_training=True)
+    tf.losses.softmax_cross_entropy(labels, logits)
 
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -118,7 +119,6 @@ def build_model():
     for loss in cls_loss:
       summaries.add(tf.summary.scalar('losses/%s'%(loss.op.name), loss))
     cls_loss = tf.add_n(cls_loss, name='cls_loss')
-    summaries.add(tf.summary.scalar('losses/cls_loss', cls_loss))
     regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     regularization_loss = tf.add_n(regularization_loss, name='regularization_loss')
     summaries.add(tf.summary.scalar('losses/regularization_loss', regularization_loss))
