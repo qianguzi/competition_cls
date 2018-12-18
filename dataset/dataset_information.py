@@ -223,8 +223,8 @@ DatasetDescriptor = collections.namedtuple(
 _PROTEIN_INFORMATION = DatasetDescriptor(
     dataset_name='protein',
     splits_to_sizes={
-        'protein-01': 5188,
-        'protein-02': 5188,
+        'protein-01': 30744,
+        'protein-02': 328,
         'protein-03': 5188,
         'protein-04': 5188,
         'protein-05': 5188,

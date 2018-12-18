@@ -12,6 +12,8 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
@@ -20,16 +22,16 @@ flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
 flags.DEFINE_integer('batch_size', 4, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 1500000,
                      'Number of training steps to perform before stopping')
-flags.DEFINE_integer('image_size', 64, 'Input image resolution')
+flags.DEFINE_integer('image_size', 112, 'Input image resolution')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
-flags.DEFINE_string('train_dir', './train_log',
+flags.DEFINE_string('train_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log',
                     'Directory for writing training checkpoints and logs')
 flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
-flags.DEFINE_string('dataset', 'lcz', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'lcz-05',
+flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
+flags.DEFINE_string('train_split', 'protein-02',
                     'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 20, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
@@ -43,9 +45,9 @@ flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
 flags.DEFINE_float('base_learning_rate', .0001,
                    'The base learning rate for model training.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.98,
+flags.DEFINE_float('learning_rate_decay_factor', 0.96,
                    'The rate to decay the base learning rate.')
-flags.DEFINE_integer('learning_rate_decay_step', 10000,
+flags.DEFINE_integer('learning_rate_decay_step', 2500,
                      'Decay the base learning rate at a fixed step.')
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
@@ -56,7 +58,7 @@ flags.DEFINE_float('slow_start_learning_rate', 1e-4,
 flags.DEFINE_float('momentum', 0.9, 'The momentum value to use')
 # For weight_decay, use 0.00004 for MobileNet-V2 or Xcpetion model variants.
 # Use 0.0001 for ResNet model variants.
-flags.DEFINE_float('weight_decay', 0.0001,
+flags.DEFINE_float('weight_decay', 0.0004,
                    'The value of the weight decay for training.')
 # Set to True if one wants to fine-tune the batch norm parameters in DeepLabv3.
 # Set to False and use small batch size to save GPU memory.
@@ -108,7 +110,8 @@ def build_model():
           FLAGS.learning_rate_decay_step, FLAGS.learning_rate_decay_factor,
           FLAGS.number_of_steps, FLAGS.learning_power,
           FLAGS.slow_start_step, FLAGS.slow_start_learning_rate)
-    opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
+    opt = tf.train.AdamOptimizer(learning_rate)
+    #opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
     cls_loss = tf.get_collection(tf.GraphKeys.LOSSES)
@@ -167,6 +170,9 @@ def train_model():
   tf.gfile.MakeDirs(FLAGS.train_dir)
   tf.logging.info('Training on %s set', FLAGS.train_split)
   g, train_tensor, summary_op = build_model()
+  config = tf.ConfigProto(allow_soft_placement=True)
+  config.gpu_options.allow_growth = True
+  config.gpu_options.per_process_gpu_memory_fraction = 0.7
   with g.as_default():
     slim.learning.train(
         train_tensor,
@@ -174,6 +180,7 @@ def train_model():
         is_chief=(FLAGS.task == 0),
         master=FLAGS.master,
         log_every_n_steps=FLAGS.log_every_n_steps,
+        session_config=config,
         graph=g,
         number_of_steps=FLAGS.number_of_steps,
         save_summaries_secs=FLAGS.save_summaries_secs,

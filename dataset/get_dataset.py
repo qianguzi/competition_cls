@@ -58,7 +58,7 @@ def get_batch(dataset, image_size, batch_size,
                sample,
                batch_size=batch_size,
                num_threads=num_threads,
-               capacity=2*batch_size,
+               capacity=5*batch_size,
                allow_smaller_final_batch=not is_training,
                dynamic_pad=True)
 
@@ -107,7 +107,7 @@ def get_dataset(dataset_name, dataset_dir, split_name,
     name_class_list = []
     idx_to_name = DATASETS_INFORMATION[dataset_name].idx_to_name
     for class_name in idx_to_name.values():
-      class_dir = os.path.join(dataset_dir, class_name)
+      class_dir = os.path.join(dataset_dir, dataset_name, class_name)
       if is_training:
         files = glob(os.path.join(class_dir, file_pattern % dataset_name))
         files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])

@@ -10,7 +10,7 @@ import dataset_information
 
 flags = tf.app.flags
 #/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
-flags.DEFINE_enum('dataset_name', 'lcz', ['protein', 'lcz'], 'Dataset name.')
+flags.DEFINE_enum('dataset_name', 'protein', ['protein', 'lcz'], 'Dataset name.')
 #flags.DEFINE_string('dataset_folder', '/media/jun/data', 'Folder containing dataset_name.')
 flags.DEFINE_string('dataset_folder', '/mnt/home/hdd/hdd1/home/LiaoL/Kaggle/Protein/dataset',
                     'Folder containing dataset_name.')
@@ -21,7 +21,7 @@ FLAGS = flags.FLAGS
 
 
 def convert_tfrecord_class(dataset_info, ori_data, per_class_image_ids, per_class_counts, num_shards=6):
-  dataset_dir = os.path.join(FLAGS.dataset_folder, dataset_info.dataset_name)
+  dataset_dir = FLAGS.dataset_folder
   output_dir = os.path.join(FLAGS.output_folder, dataset_info.dataset_name)
   tf.gfile.MakeDirs(output_dir)
   num_samples = 0
@@ -35,11 +35,11 @@ def convert_tfrecord_class(dataset_info, ori_data, per_class_image_ids, per_clas
     sys.stdout.write('[%d] Processing %s, number: %d\n' % (label_idx, label_name, class_counts))
     sys.stdout.flush()
     split_size_list = []
-    if num_shards > 0:
-      num_per_shard = int(math.ceil(class_counts/float(num_shards)))
-    else:
-      num_per_shard = int(math.ceil(class_counts*FLAGS.split_factor))
+    if FLAGS.split_factor > 0:
+      num_per_shard = int(math.floor(class_counts*FLAGS.split_factor))
       num_shards = 2
+    else:
+      num_per_shard = int(math.ceil(class_counts/float(num_shards)))
     for shard_id in range(num_shards):
       output_filename = os.path.join(
           output_dir, label_name, 
