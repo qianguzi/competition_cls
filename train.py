@@ -25,7 +25,7 @@ flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_dir', './train_log',
                     'Directory for writing training checkpoints and logs')
-flags.DEFINE_string('dataset_dir', '/media/jun/data/lcz/tfrecord', 'Location of dataset.')
+flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'lcz', 'Name of the dataset.')
@@ -77,17 +77,14 @@ def build_model():
   g = tf.Graph()
   with g.as_default(), tf.device(
       tf.train.replica_device_setter(FLAGS.ps_tasks)):
-    #samples, _ = get_dataset(FLAGS.dataset, FLAGS.train_split, FLAGS.dataset_dir,
-    #                         FLAGS.image_size, FLAGS.batch_size, is_training=True)
     samples, _ = get_dataset.get_dataset(FLAGS.dataset, FLAGS.dataset_dir,
                                          split_name=FLAGS.train_split,
                                          is_training=True,
                                          image_size=[FLAGS.image_size, FLAGS.image_size],
                                          batch_size=FLAGS.batch_size,
-                                         channel=4)
+                                         channel=FLAGS.input_channel)
     inputs = tf.identity(samples['image'], name='image')
     labels = tf.identity(samples['label'], name='label')
-    #wid_labels = tf.identity(samples['class'], name='class')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
         inputs,
@@ -95,7 +92,6 @@ def build_model():
         weight_decay=FLAGS.weight_decay,
         is_training=True,
         fine_tune_batch_norm=FLAGS.fine_tune_batch_norm)
-    #one_hot_labels = slim.one_hot_encoding(labels, FLAGS.num_classes, on_value=1.0, off_value=0.0)
     logits, _ = model.classification(net, end_points, 
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)

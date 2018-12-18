@@ -49,5 +49,5 @@ def new_preprocess(s1_data, s2_data):
 
   s2_ = _s2_pre(s2_data)
 
-  img_data = np.concatenate([s2_, s1_], -1)
+  img_data = np.concatenate([s1_, s2_], -1)
   return img_data

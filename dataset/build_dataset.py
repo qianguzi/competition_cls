@@ -11,14 +11,18 @@ import dataset_information
 flags = tf.app.flags
 #/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
 flags.DEFINE_enum('dataset_name', 'lcz', ['protein', 'lcz'], 'Dataset name.')
-flags.DEFINE_string('dataset_folder', '/media/jun/data', 'Folder containing dataset_name.')
+#flags.DEFINE_string('dataset_folder', '/media/jun/data', 'Folder containing dataset_name.')
+flags.DEFINE_string('dataset_folder', '/mnt/home/hdd/hdd1/home/LiaoL/Kaggle/Protein/dataset',
+                    'Folder containing dataset_name.')
 flags.DEFINE_float('split_factor', 0.99, 'The image data preprocess term.')
+flags.DEFINE_string('output_folder', '/mnt/home/hdd/hdd1/home/junq/dataset',
+                    'Folder containing dataset_name.')
 FLAGS = flags.FLAGS
 
 
 def convert_tfrecord_class(dataset_info, ori_data, per_class_image_ids, per_class_counts, num_shards=6):
   dataset_dir = os.path.join(FLAGS.dataset_folder, dataset_info.dataset_name)
-  output_dir = os.path.join(FLAGS.dataset_folder, dataset_info.dataset_name, 'tfrecord')
+  output_dir = os.path.join(FLAGS.output_folder, dataset_info.dataset_name)
   tf.gfile.MakeDirs(output_dir)
   num_samples = 0
   split_class_list = []
@@ -63,7 +67,7 @@ def convert_tfrecord_class(dataset_info, ori_data, per_class_image_ids, per_clas
 
 
 def build_protein_dataset():
-  train_data = pd.read_csv(os.path.join(FLAGS.dataset_folder, 'protein', 'train.csv'))
+  train_data = pd.read_csv(os.path.join(FLAGS.dataset_folder, 'train.csv'))
   dataset_info = dataset_information.DATASETS_INFORMATION['protein']
   for key in dataset_info.idx_to_name.keys():
     train_data[dataset_info.idx_to_name[key]] = 0
