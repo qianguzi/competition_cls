@@ -5,6 +5,7 @@ import tensorflow as tf
 from tensorflow.contrib import slim
 
 from dataset.preprocess import default
+# from preprocess import default
 tfexample_decoder = slim.tfexample_decoder
 
 # A map from image format to expected data format.
@@ -239,7 +240,7 @@ _PROTEIN_INFORMATION = DatasetDescriptor(
       'red': tf.FixedLenFeature((), tf.string, default_value=''),
       'blue': tf.FixedLenFeature((), tf.string, default_value=''),
       'yellow': tf.FixedLenFeature((), tf.string, default_value=''),
-      'label': tf.FixedLenFeature([28], tf.int64),
+      'label': tf.FixedLenFeature([28], tf.float32),
       'filename': tf.FixedLenFeature((), tf.string, default_value=''),
       'format': tf.FixedLenFeature((), tf.string, default_value='png'),
       },

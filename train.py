@@ -12,7 +12,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 flags = tf.app.flags
 
@@ -45,7 +45,7 @@ flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
                   'Learning rate policy for training.')
 # Use 0.007 when training on PASCAL augmented training set, train_aug. When
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
-flags.DEFINE_float('base_learning_rate', .0001,
+flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.96,
                    'The rate to decay the base learning rate.')
@@ -70,6 +70,25 @@ flags.DEFINE_integer('output_stride', 16,
                      'The ratio of input to output spatial resolution.')
 
 FLAGS = flags.FLAGS
+
+
+def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=None):
+  if labels is None:
+    raise ValueError("labels must not be None.")
+  if predictions is None:
+    raise ValueError("predictions must not be None.")
+  with tf.name_scope(scope, "focal_loss",
+                      (predictions, labels, weights)) as scope:
+    predictions = tf.to_float(predictions)
+    labels = tf.to_float(labels)
+    predictions.get_shape().assert_is_compatible_with(labels.get_shape())
+    focal_factor = tf.multiply(labels, 1-predictions + epsilon) - tf.multiply(
+            (1 - labels), predictions + epsilon)
+    losses = tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
+            (1 - labels), tf.log(1 - predictions + epsilon))
+    losses = losses * (focal_factor ** gamma)
+    return tf.losses.compute_weighted_loss(losses, weights, scope)
+
 
 def build_model():
   """Builds graph for model to train with rewrites for quantization.
@@ -99,7 +118,21 @@ def build_model():
     logits, _ = model.classification(net, end_points, 
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)
-    tf.losses.softmax_cross_entropy(labels, logits)
+    if FLAGS.multi_label:
+      logits = slim.softmax(logits)
+      half_batch_size = FLAGS.batch_size*FLAGS.num_classes / 2
+      for i in range(FLAGS.num_classes):
+        class_logits = tf.expand_dims(logits[:, i], -1)
+        class_labels = tf.expand_dims(labels[:, i], -1)
+        num_positive = tf.reduce_sum(class_labels)
+        num_negative = FLAGS.batch_size*FLAGS.num_classes - num_positive
+        weights = tf.where(tf.equal(class_labels, 1.0), 
+                           tf.constant(half_batch_size/num_positive, shape=class_labels.shape),
+                           tf.constant(half_batch_size/num_negative, shape=class_labels.shape))
+        class_focal_loss = focal_loss(class_labels, class_logits, 
+                                      weights=weights, scope='class_loss_%02d'%(i))
+    else:
+      tf.losses.softmax_cross_entropy(labels, logits)
 
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -118,8 +151,9 @@ def build_model():
 
     cls_loss = tf.get_collection(tf.GraphKeys.LOSSES)
     for loss in cls_loss:
-      summaries.add(tf.summary.scalar('losses/%s'%(loss.op.name), loss))
+      summaries.add(tf.summary.scalar('sub_losses/%s'%(loss.op.name), loss))
     cls_loss = tf.add_n(cls_loss, name='cls_loss')
+    summaries.add(tf.summary.scalar('losses/cls_loss', cls_loss))
     regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     regularization_loss = tf.add_n(regularization_loss, name='regularization_loss')
     summaries.add(tf.summary.scalar('losses/regularization_loss', regularization_loss))

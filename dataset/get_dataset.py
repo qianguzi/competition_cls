@@ -5,6 +5,8 @@ from glob import glob
 
 from dataset import data_augmentation
 from dataset import dataset_information
+# import data_augmentation
+# import dataset_information
 
 tfexample_decoder = slim.tfexample_decoder
 dataset_data_provider = slim.dataset_data_provider
@@ -102,7 +104,7 @@ def get_dataset(dataset_name, dataset_dir, split_name,
       keys_to_features, items_to_handlers)
 
   with tf.name_scope(scope, 'Dataset_quene'):
-    """ image_class_list = []
+    image_class_list = []
     label_class_list = []
     name_class_list = []
     idx_to_name = DATASETS_INFORMATION[dataset_name].idx_to_name
@@ -132,30 +134,30 @@ def get_dataset(dataset_name, dataset_dir, split_name,
         'image': image,
         'label': label,
         'image_name': image_name,
-        } """
-    class_name = 'Cytosol'
-    class_dir = os.path.join(dataset_dir, dataset_name, class_name)
-    if is_training:
-      files = glob(os.path.join(class_dir, file_pattern % dataset_name))
-      files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
-    else:
-      files = glob(os.path.join(class_dir, file_pattern % split_name))
-    dataset = slim.dataset.Dataset(
-                    data_sources=files,
-                    reader=tf.TFRecordReader,
-                    decoder=decoder,
-                    num_samples=num_samples,
-                    items_to_descriptions=_ITEMS_TO_DESCRIPTIONS,
-                    name=dataset_name)
-    samples = get_batch(dataset, is_training=is_training, 
-                       scope='Dataset_quene_%s'%(class_name), **kwargs)
+        }
+    # class_name = 'Cytosol'
+    # class_dir = os.path.join(dataset_dir, dataset_name, class_name)
+    # if is_training:
+    #   files = glob(os.path.join(class_dir, file_pattern % dataset_name))
+    #   files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
+    # else:
+    #   files = glob(os.path.join(class_dir, file_pattern % split_name))
+    # dataset = slim.dataset.Dataset(
+    #                 data_sources=files,
+    #                 reader=tf.TFRecordReader,
+    #                 decoder=decoder,
+    #                 num_samples=num_samples,
+    #                 items_to_descriptions=_ITEMS_TO_DESCRIPTIONS,
+    #                 name=dataset_name)
+    # samples = get_batch(dataset, is_training=is_training, 
+    #                    scope='Dataset_quene_%s'%(class_name), **kwargs)
 
     return samples, num_samples
 
 
 if __name__ == '__main__':
-  tf_dir = '/media/jun/data/lcz/tfrecord'
-  samples, _ = get_dataset('lcz', tf_dir, 'lcz-05', image_size=[64,64], batch_size=4, channel=1)
+  tf_dir = '/media/jun/data/tfrecord'
+  samples, _ = get_dataset('protein', tf_dir, 'protein-05', image_size=[32,32], batch_size=1, channel=0)
   init_op = tf.group(tf.global_variables_initializer(),
                      tf.local_variables_initializer())
 
