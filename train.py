@@ -26,7 +26,9 @@ flags.DEFINE_integer('image_size', 112, 'Input image resolution')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log',
+#flags.DEFINE_string('train_dir', '/home/jun/mynb/lcz/train_log',
                     'Directory for writing training checkpoints and logs')
+#flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')

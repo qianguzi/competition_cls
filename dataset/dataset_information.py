@@ -177,7 +177,7 @@ def _protein_to_tfexample(dataset_info, ori_data, image_id, label_idx, dataset_f
              }))
 
 def _get_protein_data(data_provider):
-  """Gets data from data provider.
+  """ Gets data from data provider.
 
   Args:
     data_provider: An object of slim.data_provider.
@@ -239,7 +239,7 @@ _PROTEIN_INFORMATION = DatasetDescriptor(
       'red': tf.FixedLenFeature((), tf.string, default_value=''),
       'blue': tf.FixedLenFeature((), tf.string, default_value=''),
       'yellow': tf.FixedLenFeature((), tf.string, default_value=''),
-      'label': tf.FixedLenFeature([28], tf.float32),
+      'label': tf.FixedLenFeature([28], tf.int64),
       'filename': tf.FixedLenFeature((), tf.string, default_value=''),
       'format': tf.FixedLenFeature((), tf.string, default_value='png'),
       },
