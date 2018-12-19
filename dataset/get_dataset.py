@@ -90,67 +90,59 @@ def get_dataset(dataset_name, dataset_dir, split_name,
   if split_name not in splits_to_sizes:
     raise ValueError('data split name %s not recognized' % split_name)
 
-  file_pattern = _FILE_PATTERN
-  if is_training:
-    num_samples = DATASETS_INFORMATION[dataset_name].total_samples - splits_to_sizes[split_name]
-  else:
-    num_samples = splits_to_sizes[split_name]
-
   # Specify how the TF-Examples are decoded.
   keys_to_features = DATASETS_INFORMATION[dataset_name].keys_to_features
   items_to_handlers = DATASETS_INFORMATION[dataset_name].items_to_handlers
 
   decoder = tfexample_decoder.TFExampleDecoder(
       keys_to_features, items_to_handlers)
+  idx_to_name = DATASETS_INFORMATION[dataset_name].idx_to_name
+  file_pattern = _FILE_PATTERN
 
-  with tf.name_scope(scope, 'Dataset_quene'):
-    image_class_list = []
-    label_class_list = []
-    name_class_list = []
-    idx_to_name = DATASETS_INFORMATION[dataset_name].idx_to_name
-    for class_name in idx_to_name.values():
-      class_dir = os.path.join(dataset_dir, dataset_name, class_name)
-      if is_training:
+  if is_training:
+    num_samples = DATASETS_INFORMATION[dataset_name].total_samples - splits_to_sizes[split_name]
+    with tf.name_scope(scope, 'Dataset_quene'):
+      image_class_list = []
+      label_class_list = []
+      name_class_list = []
+      for class_name in idx_to_name.values():
+        class_dir = os.path.join(dataset_dir, dataset_name, class_name)
         files = glob(os.path.join(class_dir, file_pattern % dataset_name))
         files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
-      else:
-        files = glob(os.path.join(class_dir, file_pattern % split_name))
-      dataset = slim.dataset.Dataset(
-                    data_sources=files,
-                    reader=tf.TFRecordReader,
-                    decoder=decoder,
-                    num_samples=num_samples,
-                    items_to_descriptions=_ITEMS_TO_DESCRIPTIONS,
-                    name=dataset_name)
-      sample = get_batch(dataset, is_training=is_training, 
-                         scope='Dataset_quene_%s'%(class_name), **kwargs)
-      image_class_list.append(sample['image'])
-      label_class_list.append(sample['label'])
-      name_class_list.append(sample['image_name'])
-    image = tf.concat(image_class_list, 0)
-    label = tf.concat(label_class_list, 0)
-    image_name = tf.concat(name_class_list, 0)
-    samples = {
-        'image': image,
-        'label': label,
-        'image_name': image_name,
-        }
-    # class_name = 'Cytosol'
-    # class_dir = os.path.join(dataset_dir, dataset_name, class_name)
-    # if is_training:
-    #   files = glob(os.path.join(class_dir, file_pattern % dataset_name))
-    #   files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
-    # else:
-    #   files = glob(os.path.join(class_dir, file_pattern % split_name))
-    # dataset = slim.dataset.Dataset(
-    #                 data_sources=files,
-    #                 reader=tf.TFRecordReader,
-    #                 decoder=decoder,
-    #                 num_samples=num_samples,
-    #                 items_to_descriptions=_ITEMS_TO_DESCRIPTIONS,
-    #                 name=dataset_name)
-    # samples = get_batch(dataset, is_training=is_training, 
-    #                    scope='Dataset_quene_%s'%(class_name), **kwargs)
+        dataset = slim.dataset.Dataset(
+                      data_sources=files,
+                      reader=tf.TFRecordReader,
+                      decoder=decoder,
+                      num_samples=num_samples,
+                      items_to_descriptions=_ITEMS_TO_DESCRIPTIONS,
+                      name=dataset_name)
+        sample = get_batch(dataset, is_training=is_training, 
+                           scope='Dataset_quene_%s'%(class_name), **kwargs)
+        image_class_list.append(sample['image'])
+        label_class_list.append(sample['label'])
+        name_class_list.append(sample['image_name'])
+      image = tf.concat(image_class_list, 0)
+      label = tf.concat(label_class_list, 0)
+      image_name = tf.concat(name_class_list, 0)
+      samples = {
+          'image': image,
+          'label': label,
+          'image_name': image_name,
+          }
+      return samples, num_samples
+  else:
+    num_samples = splits_to_sizes[split_name]
+    files = []
+    for class_name in idx_to_name.values():
+      files.append(os.path.join(dataset_dir, dataset_name, class_name, file_pattern % split_name))
+    dataset = slim.dataset.Dataset(
+                  data_sources=files,
+                  reader=tf.TFRecordReader,
+                  decoder=decoder,
+                  num_samples=num_samples,
+                  items_to_descriptions=_ITEMS_TO_DESCRIPTIONS,
+                  name=dataset_name)
+    samples = get_batch(dataset, is_training=is_training, **kwargs)
 
     return samples, num_samples
 

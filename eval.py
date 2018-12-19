@@ -11,22 +11,22 @@ import common, model
 from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
-from utils import f1_score
+from utils import streaming_f1_score
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
-flags.DEFINE_integer('batch_size', 2, 'Batch size')
+flags.DEFINE_integer('batch_size', 112, 'Batch size')
 flags.DEFINE_integer('image_size', 112, 'Input image resolution')
-flags.DEFINE_string('checkpoint_dir', './train_log', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
 flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'protein-02',
+flags.DEFINE_string('eval_split', 'protein-01',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
@@ -49,39 +49,47 @@ def metrics(end_points, labels):
   # Define the evaluation metric.
   metric_map = {}
   predictions = end_points['Predictions']
+  labels = tf.cast(labels, tf.int64)
   if FLAGS.multi_label:
-    predictions = tf.where(tf.greater_equal(predictions, 0.5),
+    predictions = tf.where(tf.greater_equal(predictions, 0.6),
                            tf.ones_like(predictions),
                            tf.zeros_like(predictions))
+    predictions = tf.cast(predictions, tf.int64)
+    counts_f1, update_f1 = streaming_f1_score.streaming_counts(labels, predictions, FLAGS.num_classes)
+    micro_f1, macro_f1, weight_f1 = streaming_f1_score.streaming_f1(counts_f1)
+    slim.summaries.add_scalar_summary(micro_f1, 'micro_f1', prefix='eval', print_summary=True)
+    slim.summaries.add_scalar_summary(macro_f1, 'macro_f1', prefix='eval', print_summary=True)
+    slim.summaries.add_scalar_summary(weight_f1, 'weight_f1', prefix='eval', print_summary=True)
+    return update_f1
   else:
     predictions = tf.argmax(predictions, axis=1)
     predictions = tf.reshape(predictions, shape=[-1])
     labels_id = tf.argmax(labels, axis=1)
     labels_id = tf.reshape(labels_id, shape=[-1])
     metric_map['accuracy'] = tf.metrics.accuracy(labels_id, predictions)
-    predictions = slim.one_hot_encoding(predictions, FLAGS.num_classes)
-  subacc_list = []
-  subf1_list = []
-  for i in range(FLAGS.num_classes):
-    metric_map['subacc/accuracy_%02d'%i] = tf.metrics.accuracy(labels[:,i], predictions[:,i])
-    subacc_list.append(metric_map['subacc/accuracy_%02d'%i][0])
-    metric_map['subf1/f1_score_%02d'%i] = slim.metrics.f1_score(labels[:,i], 
-                                                               end_points['Predictions'][:,i])
-    subf1_list.append(metric_map['subf1/f1_score_%02d'%i][0])
-  metric_map['ave_accuracy'] = tf.metrics.mean(tf.stack(subacc_list, 0))
-  metric_map['f1_score'] = tf.metrics.mean(tf.stack(subf1_list, 0))
-  counts_f1, update_f1 = f1_score.streaming_counts(labels, predictions, FLAGS.num_classes)
-  micro_f1, macro_f1, weight_f1 = f1_score.streaming_f1(counts_f1)
+    metrics_to_values, metrics_to_updates = (
+        tf.contrib.metrics.aggregate_metric_map(metric_map))
 
-  metrics_to_values, metrics_to_updates = (
-      tf.contrib.metrics.aggregate_metric_map(metric_map))
+    for metric_name, metric_value in six.iteritems(metrics_to_values):
+      slim.summaries.add_scalar_summary(metric_value, metric_name, prefix='eval', print_summary=False)
 
-  for metric_name, metric_value in six.iteritems(metrics_to_values):
-    slim.summaries.add_scalar_summary(metric_value, metric_name, prefix='eval', print_summary=True)
-  slim.summaries.add_scalar_summary(micro_f1, 'micro_f1', prefix='eval', print_summary=True)
-  slim.summaries.add_scalar_summary(macro_f1, 'macro_f1', prefix='eval', print_summary=True)
-  slim.summaries.add_scalar_summary(weight_f1, 'weight_f1', prefix='eval', print_summary=True)
-  return list(metrics_to_updates.values()).append(update_f1)
+    return list(metrics_to_updates.values())
+  # subacc_list = []
+  # subf1_list = []
+  # for i in range(FLAGS.num_classes):
+  #   metric_map['subacc/accuracy_%02d'%i] = tf.metrics.accuracy(labels[:,i], predictions[:,i])
+  #   subacc_list.append(metric_map['subacc/accuracy_%02d'%i][0])
+  #   metric_map['subpre/precision_%02d'%i] = tf.metrics.precision(labels[:,i], predictions[:,i])
+  #   metric_map['subrec/recall_%02d'%i] = tf.metrics.recall(labels[:,i], predictions[:,i])
+  #   class_pre = metric_map['subpre/precision_%02d'%i][0]
+  #   class_rec = metric_map['subrec/recall_%02d'%i][0]
+  #   class_f1 = (2 * class_pre * class_rec) / (class_pre + class_rec)
+  #   subf1_list.append(class_f1)
+  # ave_accuracy = tf.reduce_mean(tf.stack(subacc_list, 0))
+  # f1_score = tf.reduce_mean(tf.stack(subf1_list, 0))
+  # slim.summaries.add_scalar_summary(ave_accuracy, 'ave_accuracy', prefix='eval', print_summary=True)
+  # slim.summaries.add_scalar_summary(f1_score, 'f1_score', prefix='eval', print_summary=True)
+
 
 
 def eval_model():

@@ -19,7 +19,7 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
-flags.DEFINE_integer('batch_size', 4, 'Batch size')
+flags.DEFINE_integer('batch_size', 3, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 1500000,
                      'Number of training steps to perform before stopping')
 flags.DEFINE_integer('image_size', 112, 'Input image resolution')
@@ -60,7 +60,7 @@ flags.DEFINE_float('slow_start_learning_rate', 1e-4,
 flags.DEFINE_float('momentum', 0.9, 'The momentum value to use')
 # For weight_decay, use 0.00004 for MobileNet-V2 or Xcpetion model variants.
 # Use 0.0001 for ResNet model variants.
-flags.DEFINE_float('weight_decay', 0.0004,
+flags.DEFINE_float('weight_decay', 0.0001,
                    'The value of the weight decay for training.')
 # Set to True if one wants to fine-tune the batch norm parameters in DeepLabv3.
 # Set to False and use small batch size to save GPU memory.
@@ -84,7 +84,7 @@ def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=No
     predictions.get_shape().assert_is_compatible_with(labels.get_shape())
     focal_factor = tf.multiply(labels, 1-predictions + epsilon) - tf.multiply(
             (1 - labels), predictions + epsilon)
-    losses = tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
+    losses = -tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
             (1 - labels), tf.log(1 - predictions + epsilon))
     losses = losses * (focal_factor ** gamma)
     return tf.losses.compute_weighted_loss(losses, weights, scope)
@@ -129,10 +129,11 @@ def build_model():
         weights = tf.where(tf.equal(class_labels, 1.0), 
                            tf.constant(half_batch_size/num_positive, shape=class_labels.shape),
                            tf.constant(half_batch_size/num_negative, shape=class_labels.shape))
-        class_focal_loss = focal_loss(class_labels, class_logits, 
+        focal_loss(class_labels, class_logits, 
                                       weights=weights, scope='class_loss_%02d'%(i))
     else:
-      tf.losses.softmax_cross_entropy(labels, logits)
+      logits = slim.softmax(logits)
+      focal_loss(labels, logits)
 
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -152,7 +153,7 @@ def build_model():
     cls_loss = tf.get_collection(tf.GraphKeys.LOSSES)
     for loss in cls_loss:
       summaries.add(tf.summary.scalar('sub_losses/%s'%(loss.op.name), loss))
-    cls_loss = tf.add_n(cls_loss, name='cls_loss')
+    cls_loss = tf.reduce_mean(cls_loss, name='cls_loss')
     summaries.add(tf.summary.scalar('losses/cls_loss', cls_loss))
     regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     regularization_loss = tf.add_n(regularization_loss, name='regularization_loss')
@@ -208,7 +209,7 @@ def train_model():
   g, train_tensor, summary_op = build_model()
   config = tf.ConfigProto(allow_soft_placement=True)
   config.gpu_options.allow_growth = True
-  config.gpu_options.per_process_gpu_memory_fraction = 0.7
+  config.gpu_options.per_process_gpu_memory_fraction = 0.8
   with g.as_default():
     slim.learning.train(
         train_tensor,
