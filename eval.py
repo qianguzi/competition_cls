@@ -13,6 +13,8 @@ from net.mobilenet import mobilenet_v2
 from dataset import get_dataset
 from utils import f1_score
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
@@ -63,8 +65,8 @@ def metrics(end_points, labels):
   for i in range(FLAGS.num_classes):
     metric_map['subacc/accuracy_%02d'%i] = tf.metrics.accuracy(labels[:,i], predictions[:,i])
     subacc_list.append(metric_map['subacc/accuracy_%02d'%i][0])
-    metric_map['subf1/f1_score_%02d'%i] = tf.contrib.metrics.f1_score(labels[:,i], 
-                                                                      end_points['Predictions'][:,i])
+    metric_map['subf1/f1_score_%02d'%i] = slim.metrics.f1_score(labels[:,i], 
+                                                               end_points['Predictions'][:,i])
     subf1_list.append(metric_map['subf1/f1_score_%02d'%i][0])
   metric_map['ave_accuracy'] = tf.metrics.mean(tf.stack(subacc_list, 0))
   metric_map['f1_score'] = tf.metrics.mean(tf.stack(subf1_list, 0))
@@ -90,11 +92,11 @@ def eval_model():
   g = tf.Graph()
   with g.as_default():
     samples, num_samples = get_dataset.get_dataset(FLAGS.dataset, FLAGS.dataset_dir,
-                                         split_name=FLAGS.val_split,
-                                         is_training=False,
-                                         image_size=[FLAGS.image_size, FLAGS.image_size],
-                                         batch_size=FLAGS.batch_size,
-                                         channel=FLAGS.input_channel)
+                                                   split_name=FLAGS.eval_split,
+                                                   is_training=False,
+                                                   image_size=[FLAGS.image_size, FLAGS.image_size],
+                                                   batch_size=FLAGS.batch_size,
+                                                   channel=FLAGS.input_channel)
     inputs = tf.identity(samples['image'], name='image')
     labels = tf.identity(samples['label'], name='label')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
