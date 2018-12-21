@@ -154,13 +154,13 @@ if __name__ == '__main__':
                      tf.local_variables_initializer())
 
   with tf.Session() as sess:
-      sess.run(init_op)
-      coord = tf.train.Coordinator()
-      threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-      try:
-          while not coord.should_stop():
-              s = sess.run(samples)
-              print(s['image_name'])
-      except tf.errors.OutOfRangeError:
-          coord.request_stop()
-          coord.join(threads)
+    sess.run(init_op)
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+    try:
+      while not coord.should_stop():
+        s = sess.run(samples)
+        print(s['image_name'])
+    except tf.errors.OutOfRangeError:
+      coord.request_stop()
+      coord.join(threads)

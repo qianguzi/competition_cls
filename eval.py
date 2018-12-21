@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import six
 import os, math
+import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import slim
 
@@ -18,15 +19,18 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
-flags.DEFINE_integer('batch_size', 112, 'Batch size')
+flags.DEFINE_integer('batch_size', 1, 'Batch size')
 flags.DEFINE_integer('image_size', 112, 'Input image resolution')
-flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
-flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
-flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
+# flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
+# flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
+# flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
+flags.DEFINE_string('checkpoint_dir', '/home/jun/mynb/lcz/train_log/model.ckpt-98847', 'The directory for checkpoints')
+flags.DEFINE_string('eval_dir', '/home/jun/mynb/lcz/val_log', 'Directory for writing eval event logs')
+flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'protein-01',
+flags.DEFINE_string('eval_split', 'protein-03',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
@@ -35,6 +39,9 @@ flags.DEFINE_integer('max_number_of_evaluations', 500,
                      'indefinitely upon nonpositive values.')
 flags.DEFINE_integer('output_stride', 16,
                      'The ratio of input to output spatial resolution.')
+flags.DEFINE_boolean('use_slim', False,
+                     'Whether to use slim for eval or not.')
+flags.DEFINE_float('threshould', 0.2, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
@@ -51,7 +58,7 @@ def metrics(end_points, labels):
   predictions = end_points['Predictions']
   labels = tf.cast(labels, tf.int64)
   if FLAGS.multi_label:
-    predictions = tf.where(tf.greater_equal(predictions, 0.6),
+    predictions = tf.where(tf.greater_equal(predictions, FLAGS.threshould),
                            tf.ones_like(predictions),
                            tf.zeros_like(predictions))
     predictions = tf.cast(predictions, tf.int64)
@@ -91,6 +98,18 @@ def metrics(end_points, labels):
   # slim.summaries.add_scalar_summary(f1_score, 'f1_score', prefix='eval', print_summary=True)
 
 
+def get_checkpoint_init_fn(fine_tune_checkpoint, include_var=None, exclude_var=None):
+    """Returns the checkpoint init_fn if the checkpoint is provided."""
+    variables_to_restore = slim.get_variables_to_restore(include_var, exclude_var)
+    slim_init_fn = slim.assign_from_checkpoint_fn(
+        fine_tune_checkpoint,
+        variables_to_restore,
+        ignore_missing_vars=True)
+
+    def init_fn(sess):
+      slim_init_fn(sess)
+    return init_fn
+
 
 def eval_model():
   """Evaluates model."""
@@ -123,22 +142,56 @@ def eval_model():
     tf.logging.info('Eval num images %d', num_samples)
     tf.logging.info('Eval batch size %d and num batch %d',
                     FLAGS.batch_size, num_batches)
-    num_eval_iters = None
-    if FLAGS.max_number_of_evaluations > 0:
-      num_eval_iters = FLAGS.max_number_of_evaluations
     # session_config = tf.ConfigProto(device_count={'GPU': 0})
     session_config = tf.ConfigProto(allow_soft_placement=True)
     session_config.gpu_options.allow_growth = True
     session_config.gpu_options.per_process_gpu_memory_fraction = 0.3
-    slim.evaluation.evaluation_loop(
-        FLAGS.master,
-        FLAGS.checkpoint_dir,
-        logdir=FLAGS.eval_dir,
-        num_evals=num_batches,
-        eval_op=eval_ops,
-        session_config=session_config,
-        max_number_of_evaluations=num_eval_iters,
-        eval_interval_secs=FLAGS.eval_interval_secs)
+    if FLAGS.use_slim:
+      num_eval_iters = None
+      if FLAGS.max_number_of_evaluations > 0:
+        num_eval_iters = FLAGS.max_number_of_evaluations
+      slim.evaluation.evaluation_loop(
+          FLAGS.master,
+          FLAGS.checkpoint_dir,
+          logdir=FLAGS.eval_dir,
+          num_evals=num_batches,
+          eval_op=eval_ops,
+          session_config=session_config,
+          max_number_of_evaluations=num_eval_iters,
+          eval_interval_secs=FLAGS.eval_interval_secs)
+    else:
+      with tf.Session(config=session_config) as sess:
+        init_op = tf.group(tf.global_variables_initializer(),
+                           tf.local_variables_initializer())
+        sess.run(init_op)
+        saver_fn = get_checkpoint_init_fn(FLAGS.checkpoint_dir)
+        saver_fn(sess)
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        try:
+          mean_iou_list = []
+          i = 0
+          while not coord.should_stop():
+            logits_np, labels_np = sess.run([end_points['Predictions'], labels])
+            results = np.argsort(logits_np, 1)[:, -5:]
+            result_logits = np.sort(logits_np, 1)[:, -5:]
+            labels_id = np.where(labels_np[0] == 1)
+            print('Batch[{0}]:\nlabels:{1}, \nresults: {2}, \nresult_logits: {3}'.format(i, labels_id, results, result_logits))
+            predictions_np = np.where(logits_np > FLAGS.threshould, 1, 0)
+            insection = labels_np * predictions_np
+            insection = np.sum(insection, 1)
+            union = np.where(labels_np + predictions_np > 0, 1, 0)
+            union = np.sum(union, 1)
+            iou = insection / union
+            mean_iou = np.mean(iou)
+            mean_iou_list.append(mean_iou)
+            all_mean_iou = np.mean(mean_iou_list)
+            i += 1
+            print('Batch[{0}]--> Mean iou: {1}, All mean iou: {2}'.format(i, mean_iou, all_mean_iou))
+        except tf.errors.OutOfRangeError:
+          coord.request_stop()
+          coord.join(threads)
+        
 
 
 def main(unused_arg):
