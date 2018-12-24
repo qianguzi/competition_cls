@@ -15,10 +15,11 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-1850888', 'Checkpoint path')
-flags.DEFINE_string('export_path', './result/model.pb',
+flags.DEFINE_string('checkpoint_path', './fine_tune/model.ckpt-417857', 'Checkpoint path')
+flags.DEFINE_string('export_path', './fine_tune/model-417857.pb',
                     'Path to output Tensorflow frozen graph.')
-flags.DEFINE_integer('channel', 7, 'Number of channel.')
+flags.DEFINE_multi_integer('input_shape', [32, 32, 7], 'The shape of input image.')
+flags.DEFINE_integer('channel', 0, 'Number of channel.')
 flags.DEFINE_integer('image_size', 96, 'Input image resolution')
 flags.DEFINE_integer('output_stride', 16,
                      'The ratio of input to output spatial resolution.')
@@ -34,9 +35,12 @@ def main(unused_argv):
   tf.logging.info('Prepare to export model to: %s', FLAGS.export_path)
 
   with tf.Graph().as_default():
-    input_image = tf.placeholder(tf.float32, [32, 32, FLAGS.channel], name=_INPUT_NAME)
+    input_image = tf.placeholder(tf.float32, FLAGS.input_shape, name=_INPUT_NAME)
     inputs = data_augmentation.preprocess_image(
         input_image, FLAGS.image_size, FLAGS.image_size, is_training=False)
+    if FLAGS.channel:
+      #inputs = inputs[:,:,:FLAGS.channel]
+      inputs = inputs[:,:,3:]
     inputs = tf.expand_dims(inputs, 0)
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
@@ -52,9 +56,9 @@ def main(unused_argv):
                                            num_classes=FLAGS.num_classes,
                                            is_training=False)
 
-    prediction = tf.argmax(end_points['Predictions'], 1)
-    prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)
-    prediction = tf.identity(prediction, name=_OUTPUT_NAME)
+    #prediction = tf.argmax(end_points['Predictions'], 1)
+    #prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)
+    prediction = tf.identity(end_points['Predictions'], name=_OUTPUT_NAME)
 
     saver = tf.train.Saver(tf.model_variables())
 

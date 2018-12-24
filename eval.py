@@ -30,7 +30,7 @@ flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of data
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'protein-03',
+flags.DEFINE_string('eval_split', 'protein-002',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
@@ -41,7 +41,7 @@ flags.DEFINE_integer('output_stride', 16,
                      'The ratio of input to output spatial resolution.')
 flags.DEFINE_boolean('use_slim', False,
                      'Whether to use slim for eval or not.')
-flags.DEFINE_float('threshould', 0.2, 'The momentum value to use')
+flags.DEFINE_float('threshould', 0.19, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
@@ -173,21 +173,25 @@ def eval_model():
           i = 0
           while not coord.should_stop():
             logits_np, labels_np = sess.run([end_points['Predictions'], labels])
-            results = np.argsort(logits_np, 1)[:, -5:]
-            result_logits = np.sort(logits_np, 1)[:, -5:]
-            labels_id = np.where(labels_np[0] == 1)
-            print('Batch[{0}]:\nlabels:{1}, \nresults: {2}, \nresult_logits: {3}'.format(i, labels_id, results, result_logits))
+            logits_np = logits_np[0]
+            labels_np = labels_np[0]
+            results = np.argsort(logits_np)[-5:]
+            result_logits = np.sort(logits_np)[-5:]
+            labels_id = np.where(labels_np == 1)[0]
+            i += 1
+            print('Image[{0}]:\nlabels:{1}, \nresults: {2}, \nresult_logits: {3}'.format(i, labels_id, results, result_logits))
+            max_id = np.argmax(logits_np)
+            logits_np[max_id] = 1
             predictions_np = np.where(logits_np > FLAGS.threshould, 1, 0)
             insection = labels_np * predictions_np
-            insection = np.sum(insection, 1)
+            insection = np.sum(insection)
             union = np.where(labels_np + predictions_np > 0, 1, 0)
-            union = np.sum(union, 1)
+            union = np.sum(union)
             iou = insection / union
             mean_iou = np.mean(iou)
             mean_iou_list.append(mean_iou)
             all_mean_iou = np.mean(mean_iou_list)
-            i += 1
-            print('Batch[{0}]--> Mean iou: {1}, All mean iou: {2}'.format(i, mean_iou, all_mean_iou))
+            print('Image[{0}]--> iou: {1}, mean iou: {2}'.format(i, mean_iou, all_mean_iou))
         except tf.errors.OutOfRangeError:
           coord.request_stop()
           coord.join(threads)
