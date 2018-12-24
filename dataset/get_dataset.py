@@ -43,19 +43,15 @@ def get_batch(dataset, image_size, batch_size,
         num_readers=num_readers,
         num_epochs=None if is_training else 1,
         shuffle=is_training)
-    image, label, image_name = DATASETS_INFORMATION[dataset.name].get_data_fn(data_provider)
+    sample = DATASETS_INFORMATION[dataset.name].get_data_fn(data_provider)
     if channel:
-      image = image[:,:,:channel]
-    image = data_augmentation.preprocess_image(
-        image,
+      sample['image'] = sample['image'][:,:,:channel]
+    sample['image'] = data_augmentation.preprocess_image(
+        sample['image'],
         height=image_size[0],
         width=image_size[1],
         is_training=is_training)
-    sample = {
-        'image': image,
-        'label': label,
-        'image_name': image_name,
-        }
+
     return tf.train.batch(
                sample,
                batch_size=batch_size,
@@ -105,6 +101,8 @@ def get_dataset(dataset_name, dataset_dir, split_name,
       image_class_list = []
       label_class_list = []
       name_class_list = []
+      if dataset_name == 'protein':
+        counts_class_list = []
       for class_name in idx_to_name.values():
         class_dir = os.path.join(dataset_dir, dataset_name, class_name)
         files = glob(os.path.join(class_dir, file_pattern % dataset_name))
@@ -121,6 +119,8 @@ def get_dataset(dataset_name, dataset_dir, split_name,
         image_class_list.append(sample['image'])
         label_class_list.append(sample['label'])
         name_class_list.append(sample['image_name'])
+        if dataset_name == 'protein':
+          counts_class_list.append(sample['counts'])
       image = tf.concat(image_class_list, 0)
       label = tf.concat(label_class_list, 0)
       image_name = tf.concat(name_class_list, 0)
@@ -129,12 +129,16 @@ def get_dataset(dataset_name, dataset_dir, split_name,
           'label': label,
           'image_name': image_name,
           }
+      if dataset_name == 'protein':
+        counts = tf.concat(counts_class_list, 0)
+        samples['counts'] = counts
       return samples, num_samples
   else:
     num_samples = splits_to_sizes[split_name]
     files = []
-    for class_name in idx_to_name.values():
-      files.append(os.path.join(dataset_dir, dataset_name, class_name, file_pattern % split_name))
+    # for class_name in idx_to_name.values():
+    #   files.append(os.path.join(dataset_dir, dataset_name, class_name, file_pattern % split_name))
+    files.append(os.path.join(dataset_dir, dataset_name, 'Nuclear_membrane', file_pattern % split_name))
     dataset = slim.dataset.Dataset(
                   data_sources=files,
                   reader=tf.TFRecordReader,
@@ -149,7 +153,7 @@ def get_dataset(dataset_name, dataset_dir, split_name,
 
 if __name__ == '__main__':
   tf_dir = '/media/jun/data/tfrecord'
-  samples, _ = get_dataset('protein', tf_dir, 'protein-05', image_size=[32,32], batch_size=1, channel=0)
+  samples, _ = get_dataset('protein', tf_dir, 'protein-02', image_size=[32,32], batch_size=2, is_training=False)
   init_op = tf.group(tf.global_variables_initializer(),
                      tf.local_variables_initializer())
 

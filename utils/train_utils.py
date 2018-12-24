@@ -21,6 +21,24 @@ from tensorflow.contrib import slim
 from utils import preprocess_utils
 
 
+def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=None):
+  if labels is None:
+    raise ValueError("labels must not be None.")
+  if predictions is None:
+    raise ValueError("predictions must not be None.")
+  with tf.name_scope(scope, "focal_loss",
+                      (predictions, labels, weights)) as scope:
+    predictions = tf.to_float(predictions)
+    labels = tf.to_float(labels)
+    predictions.get_shape().assert_is_compatible_with(labels.get_shape())
+    focal_factor = tf.multiply(labels, 1-predictions + epsilon) - tf.multiply(
+            (1 - labels), predictions + epsilon)
+    losses = -tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
+            (1 - labels), tf.log(1 - predictions + epsilon))
+    losses = losses * (focal_factor ** gamma)
+    return tf.losses.compute_weighted_loss(losses, weights, scope)
+
+
 def add_softmax_cross_entropy_loss_for_each_scale(scales_to_logits,
                                                   labels,
                                                   num_classes,

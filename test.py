@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 from time import time
 
-from dataset.preprocess import first, default
+from dataset import data_preprocess
 
 flags = tf.app.flags
 
@@ -26,10 +26,8 @@ FLAGS = flags.FLAGS
 
 
 _PREPROCESS_METHOD = {
-    'default': default.default_preprocess,
-    'first': first.first_preprocess,
-    'multiscale': default.new_preprocess,
-    'name': default.new_preprocess,
+    'multiscale': data_preprocess.lcz_preprocess,
+    'name': data_preprocess.lcz_preprocess,
 }
 
 def model_test():
@@ -76,26 +74,26 @@ def model_test_ensemble():
   g = tf.Graph()
   with g.as_default():
     od_graph_def = tf.GraphDef()
-    with tf.gfile.FastGFile('./fine_tune/model-887849.pb', 'rb') as f:
-        od_graph_def.ParseFromString(f.read())
-        img_tensor_a, prediction_a= tf.import_graph_def(
-                od_graph_def,
-                return_elements=['ImageTensor:0', 'Prediction:0'])
+    # with tf.gfile.FastGFile('./fine_tune/model-887849.pb', 'rb') as f:
+    #   od_graph_def.ParseFromString(f.read())
+    #   img_tensor_a, prediction_a= tf.import_graph_def(
+    #       od_graph_def,
+    #       return_elements=['ImageTensor:0', 'Prediction:0'])
     with tf.gfile.FastGFile('./fine_tune/model-803207.pb', 'rb') as f:
-        od_graph_def.ParseFromString(f.read())
-        img_tensor_b, prediction_b= tf.import_graph_def(
-                od_graph_def,
-                return_elements=['ImageTensor:0', 'Prediction:0'])
+      od_graph_def.ParseFromString(f.read())
+      img_tensor_b, prediction_b= tf.import_graph_def(
+          od_graph_def,
+          return_elements=['ImageTensor:0', 'Prediction:0'])
     with tf.gfile.FastGFile('./fine_tune/model-1583198.pb', 'rb') as f:
-        od_graph_def.ParseFromString(f.read())
-        img_tensor_c, prediction_c= tf.import_graph_def(
-                od_graph_def,
-                return_elements=['ImageTensor:0', 'Prediction:0'])
-    with tf.gfile.FastGFile('./fine_tune/model-1850888.pb', 'rb') as f:
-        od_graph_def.ParseFromString(f.read())
-        img_tensor_d, prediction_d= tf.import_graph_def(
-                od_graph_def,
-                return_elements=['ImageTensor:0', 'Prediction:0'])
+      od_graph_def.ParseFromString(f.read())
+      img_tensor_c, prediction_c= tf.import_graph_def(
+          od_graph_def,
+          return_elements=['ImageTensor:0', 'Prediction:0'])
+    # with tf.gfile.FastGFile('./fine_tune/model-1850888.pb', 'rb') as f:
+    #   od_graph_def.ParseFromString(f.read())
+    #   img_tensor_d, prediction_d= tf.import_graph_def(
+    #       od_graph_def,
+    #       return_elements=['ImageTensor:0', 'Prediction:0'])
     init_op = tf.global_variables_initializer()
     fid_test = h5py.File(FLAGS.test_dataset_path, 'r')
     s1_test = fid_test['sen1']
@@ -112,10 +110,15 @@ def model_test_ensemble():
           s2_data = s2_test[idx]
           img_data = preprocess_fn(s1_data, s2_data).astype(np.float32)
 
-          pred_a, pred_b, pred_c, pred_d = sess.run([prediction_a, prediction_b, prediction_c, prediction_d], 
-                          {img_tensor_a: img_data, img_tensor_b: img_data, img_tensor_c: img_data, img_tensor_d: img_data})
+          feed_dict = {
+              #img_tensor_a: img_data,
+              img_tensor_b: img_data,
+              img_tensor_c: img_data,
+              #img_tensor_d: img_data,
+              }
+          pred_b, pred_c = sess.run([prediction_b, prediction_c], feed_dict)
 
-          pred_logits = (pred_a[0, 1:] + pred_b[0, 1:] + pred_c[0, 1:] + pred_d[0, 1:]) / 4
+          pred_logits = (pred_b[0, 1:] + pred_c[0, 1:]) / 2
           pred = np.zeros([17], np.uint8)
           pred[np.argmax(pred_logits)] = 1
           pred_rows.append(pred)

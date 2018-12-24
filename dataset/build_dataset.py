@@ -9,13 +9,14 @@ from random import shuffle
 import dataset_information
 
 flags = tf.app.flags
-#/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
+# /media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
+# /mnt/home/hdd/hdd1/home/LiaoL/Kaggle/Protein/dataset
+# /mnt/home/hdd/hdd1/home/junq/dataset
 flags.DEFINE_enum('dataset_name', 'protein', ['protein', 'lcz'], 'Dataset name.')
-#flags.DEFINE_string('dataset_folder', '/media/jun/data', 'Folder containing dataset_name.')
-flags.DEFINE_string('dataset_folder', '/mnt/home/hdd/hdd1/home/LiaoL/Kaggle/Protein/dataset',
+flags.DEFINE_string('dataset_folder', '/media/jun/data/protein',
                     'Folder containing dataset_name.')
 flags.DEFINE_float('split_factor', 0.99, 'The image data preprocess term.')
-flags.DEFINE_string('output_folder', '/mnt/home/hdd/hdd1/home/junq/dataset',
+flags.DEFINE_string('output_folder', '/media/jun/data/tfrecord',
                     'Folder containing dataset_name.')
 FLAGS = flags.FLAGS
 
@@ -78,7 +79,8 @@ def build_protein_dataset():
       row.loc[name] = 1
     return row
   train_data = train_data.apply(fill_targets, axis=1)
-  
+  train_data['Number_of_targets'] = train_data.drop(['Id', 'Target'],axis=1).sum(axis=1)
+
   per_class_counts = {}
   per_class_image_ids = {}
   sub_data = train_data.drop(['Target'],axis=1).copy(deep=True)
@@ -86,7 +88,9 @@ def build_protein_dataset():
   for i in range(dataset_info.num_classes):
     special_target = target_counts.keys()[-1]
     per_class_counts[special_target] = target_counts[-1]
-    per_class_image_ids[special_target] = list(sub_data['Id'][sub_data[special_target] == 1])
+    special_target_id = list(sub_data[sub_data[special_target] == 1]['Id'])
+    shuffle(special_target_id)
+    per_class_image_ids[special_target] = special_target_id
     sub_data = sub_data[sub_data[special_target] == 0].drop([special_target],axis=1)
     target_counts = sub_data.drop(['Id'],axis=1).sum(axis=0).sort_values(ascending=False)
 
@@ -120,7 +124,7 @@ def build_lcz_dataset():
 
   train_image_ids, train_counts = split_dataset(label_training, 'training')
   val_image_ids, val_counts = split_dataset(label_validation, 'validation')
-  
+
   per_class_image_ids ={}
   per_class_counts = {}
   for class_name in train_image_ids:

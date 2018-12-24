@@ -72,24 +72,6 @@ flags.DEFINE_integer('output_stride', 16,
 FLAGS = flags.FLAGS
 
 
-def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=None):
-  if labels is None:
-    raise ValueError("labels must not be None.")
-  if predictions is None:
-    raise ValueError("predictions must not be None.")
-  with tf.name_scope(scope, "focal_loss",
-                      (predictions, labels, weights)) as scope:
-    predictions = tf.to_float(predictions)
-    labels = tf.to_float(labels)
-    predictions.get_shape().assert_is_compatible_with(labels.get_shape())
-    focal_factor = tf.multiply(labels, 1-predictions + epsilon) - tf.multiply(
-            (1 - labels), predictions + epsilon)
-    losses = -tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
-            (1 - labels), tf.log(1 - predictions + epsilon))
-    losses = losses * (focal_factor ** gamma)
-    return tf.losses.compute_weighted_loss(losses, weights, scope)
-
-
 def build_model():
   """Builds graph for model to train with rewrites for quantization.
   Returns:
@@ -126,15 +108,22 @@ def build_model():
         class_labels = tf.expand_dims(labels[:, i], -1)
         num_positive = tf.reduce_sum(class_labels)
         num_negative = FLAGS.batch_size*FLAGS.num_classes - num_positive
-        weights = tf.where(tf.equal(class_labels, 1.0), 
+        weights = tf.where(tf.equal(class_labels, 1.0),
                            tf.constant(half_batch_size/num_positive, shape=class_labels.shape),
                            tf.constant(half_batch_size/num_negative, shape=class_labels.shape))
-        focal_loss(class_labels, class_logits, 
-                                      weights=weights, scope='class_loss_%02d'%(i))
+        train_utils.focal_loss(class_labels, class_logits,
+                               weights=weights, scope='class_loss_%02d'%(i))
     else:
       logits = slim.softmax(logits)
-      focal_loss(labels, logits)
+      train_utils.focal_loss(labels, logits, scope='cls_loss')
 
+    if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
+      counts = tf.identity(samples['counts'], name='counts')
+      one_hot_counts = slim.one_hot_encoding(counts, 5)
+      counts_logits, _ = model.classification(net, end_points, num_classes=5,
+                                              is_training=True, scope='Counts_logits')
+      counts_logits = slim.softmax(counts_logits)
+      train_utils.focal_loss(one_hot_counts, counts_logits, scope='counts_loss')
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     # Gather initial summaries.

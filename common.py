@@ -24,6 +24,8 @@ flags.DEFINE_boolean('hierarchical_cls', True,
                      'Whether to apply hierarchical classification.')
 flags.DEFINE_boolean('multi_label', True,
                      'Whether label is multi-label or not.')
+flags.DEFINE_boolean('add_counts_logits', True,
+                     'Whether to add counts logits.')
 flags.DEFINE_integer('input_channel', 0, 'The channel of input image.')
 
 FLAGS = flags.FLAGS

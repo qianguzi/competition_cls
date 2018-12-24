@@ -4,8 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import slim
 
-from dataset.preprocess import default
-# from preprocess import default
+# from dataset import data_preprocess
+import data_preprocess
 tfexample_decoder = slim.tfexample_decoder
 
 # A map from image format to expected data format.
@@ -121,7 +121,7 @@ def _lcz_to_tfexample(dataset_info, ori_data, image_id, label_idx, dataset_folde
     raise RuntimeError('Label is wrong.')
   s1_data = ori_data[0][name][idx]
   s2_data = ori_data[1][name][idx]
-  img_data = default.new_preprocess(s1_data, s2_data)
+  img_data = data_preprocess.lcz_preprocess(s1_data, s2_data)
   img_data = np.reshape(img_data, [-1]).astype(np.float32)
   image_name = (name+str(idx)).encode()
   return tf.train.Example(features=tf.train.Features(feature={
@@ -129,6 +129,7 @@ def _lcz_to_tfexample(dataset_info, ori_data, image_id, label_idx, dataset_folde
              'label': _float_list_feature(label),
              'filename': _bytes_list_feature(image_name),
              }))
+
 
 def _get_lcz_data(data_provider):
   """Gets data from data provider.
@@ -138,7 +139,7 @@ def _get_lcz_data(data_provider):
 
   Returns:
     image: Image Tensor.
-    label: Label Tensor storing segmentation annotations.
+    label: Label Tensor storing category information.
     image_name: Image name.
 
   Raises:
@@ -152,11 +153,17 @@ def _get_lcz_data(data_provider):
     image_name, = data_provider.get(['image_name'])
   else:
     image_name = tf.constant('')
-  return image, label, image_name
+  sample = {
+      'image': image,
+      'label': label,
+      'image_name': image_name,
+      }
+  return sample
 
 
 def _protein_to_tfexample(dataset_info, ori_data, image_id, label_idx, dataset_folder=None):
   label = list(ori_data[ori_data['Id']==image_id]['Target'])[0]
+  label_counts = int(list(ori_data[ori_data['Id']==image_id]['Number_of_targets'])[0])
   if label_idx not in label:
     raise RuntimeError('Label is wrong.')
   one_hot_label = np.zeros([dataset_info.num_classes], np.float32)
@@ -173,6 +180,7 @@ def _protein_to_tfexample(dataset_info, ori_data, image_id, label_idx, dataset_f
              'blue': _bytes_list_feature(image_data_blue),
              'yellow': _bytes_list_feature(image_data_yellow),
              'label': _float_list_feature(one_hot_label),
+             'counts': _int64_list_feature(label_counts),
              'filename': _bytes_list_feature(image_id),
              'format': _bytes_list_feature(_IMAGE_FORMAT_MAP['png']),
              }))
@@ -184,16 +192,14 @@ def _get_protein_data(data_provider):
     data_provider: An object of slim.data_provider.
 
   Returns:
-    image: Image Tensor.
-    label: Label Tensor storing segmentation annotations.
-    image_name: Image name.
+    sample: A dict storing sample data information.
 
   Raises:
     ValueError: Failed to find label.
   """
   if 'label' not in data_provider.list_items():
     raise ValueError('Failed to find labels.')
-  label, = data_provider.get(['label'])
+  label, counts = data_provider.get(['label', 'counts'])
   image = data_provider.get(
       ['image_green', 'image_red', 'image_blue', 'image_yellow'])
   image = tf.concat(image, -1)
@@ -203,7 +209,13 @@ def _get_protein_data(data_provider):
     image_name, = data_provider.get(['image_name'])
   else:
     image_name = tf.constant('')
-  return image, label, image_name
+  sample = {
+      'image': image,
+      'label': label,
+      'counts': counts,
+      'image_name': image_name,
+      }
+  return sample
 
 # Named tuple to describe the dataset properties.
 DatasetDescriptor = collections.namedtuple(
@@ -230,6 +242,7 @@ _PROTEIN_INFORMATION = DatasetDescriptor(
         'protein-04': 5188,
         'protein-05': 5188,
         'protein-06': 5132,
+        'protein': 31072,
     },
     total_samples=31072,
     num_classes=28,
@@ -241,6 +254,7 @@ _PROTEIN_INFORMATION = DatasetDescriptor(
       'blue': tf.FixedLenFeature((), tf.string, default_value=''),
       'yellow': tf.FixedLenFeature((), tf.string, default_value=''),
       'label': tf.FixedLenFeature([28], tf.float32),
+      'counts': tf.FixedLenFeature((), tf.int64, default_value=1),
       'filename': tf.FixedLenFeature((), tf.string, default_value=''),
       'format': tf.FixedLenFeature((), tf.string, default_value='png'),
       },
@@ -262,6 +276,7 @@ _PROTEIN_INFORMATION = DatasetDescriptor(
           format_key='format',
           channels=1),
       'label': tfexample_decoder.Tensor('label', shape=[28]),
+      'counts': tfexample_decoder.Tensor('counts', shape=[]),
       'image_name': tfexample_decoder.Tensor('filename'),
       },
     get_data_fn=_get_protein_data,
@@ -290,6 +305,7 @@ _LCZ_INFORMATION = DatasetDescriptor(
         'lcz-18': 18833,
         'lcz-19': 18833,
         'lcz-20': 18658,
+        'lcz': 376485,
     },
     total_samples=376485,
     num_classes=17,

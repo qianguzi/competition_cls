@@ -14,22 +14,6 @@ DatasetDescriptor = collections.namedtuple(
      'splits_to_sizes',
     ]
 )
-# exclude 'class'
-_DEFAULT_INFORMATION = DatasetDescriptor(
-    channel=6,
-    splits_to_sizes={
-        'train': 839103,
-        'val': 24119,
-    },
-)
-# exclude 'class'
-_FIRST_INFORMATION = DatasetDescriptor(
-    channel=18,
-    splits_to_sizes={
-        'train': 121992,
-        'val': 24119,
-    },
-)
 # include `class`
 _MULTILABLE_INFORMATION = DatasetDescriptor(
     channel=7,
@@ -57,8 +41,6 @@ _NAME_INFORMATION = DatasetDescriptor(
 )
 
 _DATASETS_INFORMATION = {
-    'default': _DEFAULT_INFORMATION,
-    'first': _FIRST_INFORMATION,
     'multilabel': _MULTILABLE_INFORMATION,
     'name': _NAME_INFORMATION,
 }

@@ -9,8 +9,7 @@ import numpy as np
 import tensorflow as tf
 from random import shuffle
 
-from preprocess import first
-from preprocess import default
+import data_preprocess
 
 flags = tf.app.flags
 #/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
@@ -23,10 +22,8 @@ FLAGS = flags.FLAGS
 _NUM_CLASSES = 17
 _NUM_SHARDS = 10
 _PREPROCESS_METHOD = {
-    'default': default.default_preprocess,
-    'first': first.first_preprocess,
-    'multilabel': default.new_preprocess,
-    'name': default.new_preprocess, 
+    'multilabel': data_preprocess.lcz_preprocess,
+    'name': data_preprocess.lcz_preprocess, 
 }
 
 def _bytes_feature(value):

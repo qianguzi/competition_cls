@@ -26,8 +26,9 @@ def get_features(images,
 def classification(net, end_points, 
                    num_classes=18, 
                    is_training=False, 
-                   prediction_fn=slim.softmax,):
-  with tf.variable_scope('Logits'):
+                   prediction_fn=slim.softmax,
+                   scope=None):
+  with tf.variable_scope(scope, 'Logits'):
     net = global_pool(net)
     end_points['global_pool'] = net
     if not num_classes:

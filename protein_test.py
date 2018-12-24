@@ -9,8 +9,6 @@ import pandas as pd
 import tensorflow as tf
 from time import time
 
-from dataset.preprocess import first, default
-
 flags = tf.app.flags
 
 flags.DEFINE_string('test_dataset_path',
