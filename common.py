@@ -10,7 +10,7 @@ import tensorflow as tf
 flags = tf.app.flags
 #resnet_v1_50_beta
 # Flags for input preprocessing.
-flags.DEFINE_integer('num_classes', 18, 'Number of classes to distinguish')
+flags.DEFINE_integer('num_classes', 29, 'Number of classes to distinguish')
 # Model dependent flags.
 flags.DEFINE_string('model_variant', 'resnet_v1_50_beta', 'DeepLab model variant.')
 # Defaults to None. Set multi_grid = [1, 2, 4] when using provided

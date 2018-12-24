@@ -12,7 +12,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 flags = tf.app.flags
 
@@ -20,20 +20,20 @@ flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
 flags.DEFINE_integer('batch_size', 3, 'Batch size')
-flags.DEFINE_integer('number_of_steps', 1500000,
+flags.DEFINE_integer('number_of_steps', 2000000,
                      'Number of training steps to perform before stopping')
 flags.DEFINE_integer('image_size', 112, 'Input image resolution')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log',
-#flags.DEFINE_string('train_dir', '/home/jun/mynb/lcz/train_log',
+# flags.DEFINE_string('train_dir', '/home/jun/mynb/lcz/train_log',
                     'Directory for writing training checkpoints and logs')
-#flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-#flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
-#                    'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
+#                     'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'protein-02',
+flags.DEFINE_string('train_split', 'protein-01',
                     'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 20, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
@@ -47,7 +47,7 @@ flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
 flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.96,
+flags.DEFINE_float('learning_rate_decay_factor', 0.98,
                    'The rate to decay the base learning rate.')
 flags.DEFINE_integer('learning_rate_decay_step', 2500,
                      'Decay the base learning rate at a fixed step.')
@@ -88,8 +88,9 @@ def build_model():
                                          image_size=[FLAGS.image_size, FLAGS.image_size],
                                          batch_size=FLAGS.batch_size,
                                          channel=FLAGS.input_channel)
+    batch_size = FLAGS.batch_size * (FLAGS.num_classes - 1)
     inputs = tf.identity(samples['image'], name='image')
-    labels = tf.identity(samples['label'], name='label')
+    labels = tf.identity(tf.concat([samples['label'], tf.zeros([batch_size, 1])], -1), name='label')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
         inputs,
@@ -102,15 +103,16 @@ def build_model():
                                      is_training=True)
     if FLAGS.multi_label:
       logits = slim.softmax(logits)
-      half_batch_size = FLAGS.batch_size*FLAGS.num_classes / 2
-      for i in range(FLAGS.num_classes):
-        class_logits = tf.expand_dims(logits[:, i], -1)
-        class_labels = tf.expand_dims(labels[:, i], -1)
+      half_batch_size = batch_size / 2
+      train_utils.focal_loss(labels[:, 0], logits[:, 0], scope='class_loss_00')
+      for i in range(1, FLAGS.num_classes):
+        class_logits = tf.identity(logits[:, i], name='class_logits_%02d'%(i))
+        class_labels = tf.identity(labels[:, i], name='class_labels_%02d'%(i))
         num_positive = tf.reduce_sum(class_labels)
-        num_negative = FLAGS.batch_size*FLAGS.num_classes - num_positive
+        num_negative = batch_size - num_positive
         weights = tf.where(tf.equal(class_labels, 1.0),
-                           tf.constant(half_batch_size/num_positive, shape=class_labels.shape),
-                           tf.constant(half_batch_size/num_negative, shape=class_labels.shape))
+                           tf.tile([half_batch_size/num_positive], [batch_size]),
+                           tf.tile([half_batch_size/num_negative], [batch_size]))
         train_utils.focal_loss(class_labels, class_logits,
                                weights=weights, scope='class_loss_%02d'%(i))
     else:
@@ -119,8 +121,8 @@ def build_model():
 
     if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
       counts = tf.identity(samples['counts'], name='counts')
-      one_hot_counts = slim.one_hot_encoding(counts, 5)
-      counts_logits, _ = model.classification(net, end_points, num_classes=5,
+      one_hot_counts = slim.one_hot_encoding(counts, 6)
+      counts_logits, _ = model.classification(net, end_points, num_classes=6,
                                               is_training=True, scope='Counts_logits')
       counts_logits = slim.softmax(counts_logits)
       train_utils.focal_loss(one_hot_counts, counts_logits, scope='counts_loss')

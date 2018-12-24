@@ -4,8 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import slim
 
-# from dataset import data_preprocess
-import data_preprocess
+from dataset import data_preprocess
+# import data_preprocess
 tfexample_decoder = slim.tfexample_decoder
 
 # A map from image format to expected data format.

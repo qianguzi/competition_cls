@@ -106,7 +106,7 @@ def get_dataset(dataset_name, dataset_dir, split_name,
       for class_name in idx_to_name.values():
         class_dir = os.path.join(dataset_dir, dataset_name, class_name)
         files = glob(os.path.join(class_dir, file_pattern % dataset_name))
-        files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
+        #files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
         dataset = slim.dataset.Dataset(
                       data_sources=files,
                       reader=tf.TFRecordReader,

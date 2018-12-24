@@ -12,11 +12,12 @@ flags = tf.app.flags
 # /media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz
 # /mnt/home/hdd/hdd1/home/LiaoL/Kaggle/Protein/dataset
 # /mnt/home/hdd/hdd1/home/junq/dataset
+# /media/jun/data/protein
 flags.DEFINE_enum('dataset_name', 'protein', ['protein', 'lcz'], 'Dataset name.')
-flags.DEFINE_string('dataset_folder', '/media/jun/data/protein',
+flags.DEFINE_string('dataset_folder', '/mnt/home/hdd/hdd1/home/LiaoL/Kaggle/Protein/dataset',
                     'Folder containing dataset_name.')
 flags.DEFINE_float('split_factor', 0.99, 'The image data preprocess term.')
-flags.DEFINE_string('output_folder', '/media/jun/data/tfrecord',
+flags.DEFINE_string('output_folder', '/mnt/home/hdd/hdd1/home/junq/dataset',
                     'Folder containing dataset_name.')
 FLAGS = flags.FLAGS
 
