@@ -90,7 +90,7 @@ def build_model():
                                          channel=FLAGS.input_channel)
     batch_size = FLAGS.batch_size * (FLAGS.num_classes - 1)
     inputs = tf.identity(samples['image'], name='image')
-    labels = tf.identity(tf.concat([samples['label'], tf.zeros([batch_size, 1])], -1), name='label')
+    labels = tf.identity(tf.concat([tf.zeros([batch_size, 1]), samples['label']], -1), name='label')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
         inputs,
