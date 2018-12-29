@@ -12,7 +12,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 flags = tf.app.flags
 
@@ -102,19 +102,20 @@ def build_model():
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)
     if FLAGS.multi_label:
-      logits = slim.softmax(logits)
-      half_batch_size = batch_size / 2
-      train_utils.focal_loss(labels[:, 0], logits[:, 0], scope='class_loss_00')
-      for i in range(1, FLAGS.num_classes):
-        class_logits = tf.identity(logits[:, i], name='class_logits_%02d'%(i))
-        class_labels = tf.identity(labels[:, i], name='class_labels_%02d'%(i))
-        num_positive = tf.reduce_sum(class_labels)
-        num_negative = batch_size - num_positive
-        weights = tf.where(tf.equal(class_labels, 1.0),
-                           tf.tile([half_batch_size/num_positive], [batch_size]),
-                           tf.tile([half_batch_size/num_negative], [batch_size]))
-        train_utils.focal_loss(class_labels, class_logits,
-                               weights=weights, scope='class_loss_%02d'%(i))
+      with tf.name_scope('Multilabel_logits'):
+        logits = slim.softmax(logits)
+        half_batch_size = batch_size / 2
+        train_utils.focal_loss(labels[:, 0], logits[:, 0], scope='class_loss_00')
+        for i in range(1, FLAGS.num_classes):
+          class_logits = tf.identity(logits[:, i], name='class_logits_%02d'%(i))
+          class_labels = tf.identity(labels[:, i], name='class_labels_%02d'%(i))
+          num_positive = tf.reduce_sum(class_labels)
+          num_negative = batch_size - num_positive
+          weights = tf.where(tf.equal(class_labels, 1.0),
+                             tf.tile([half_batch_size/num_positive], [batch_size]),
+                             tf.tile([half_batch_size/num_negative], [batch_size]))
+          train_utils.focal_loss(class_labels, class_logits,
+                                 weights=weights, scope='class_loss_%02d'%(i))
     else:
       logits = slim.softmax(logits)
       train_utils.focal_loss(labels, logits, scope='cls_loss')
