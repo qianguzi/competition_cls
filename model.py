@@ -27,10 +27,10 @@ def classification(net, end_points,
                    num_classes=18, 
                    is_training=False, 
                    prediction_fn=slim.softmax,
-                   scope=None):
+                   scope='Logits'):
   with tf.variable_scope(scope, 'Logits'):
     net = global_pool(net)
-    end_points['global_pool'] = net
+    end_points[scope + '_global_pool'] = net
     if not num_classes:
        return net, end_points
     net = slim.dropout(net, scope='Dropout', is_training=is_training)
@@ -46,9 +46,9 @@ def classification(net, end_points,
     logits = tf.squeeze(logits, [1, 2])
 
     logits = tf.identity(logits, name='output')
-    end_points['Logits'] = logits
+    end_points[scope + '_Logits'] = logits
     if prediction_fn:
-      end_points['Predictions'] = prediction_fn(logits, 'Predictions')
+      end_points[scope + '_Predictions'] = prediction_fn(logits, 'Predictions')
   return logits, end_points
 
 

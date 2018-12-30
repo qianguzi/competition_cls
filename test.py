@@ -74,21 +74,21 @@ def model_test_ensemble():
   g = tf.Graph()
   with g.as_default():
     od_graph_def = tf.GraphDef()
-    # with tf.gfile.FastGFile('./fine_tune/model-887849.pb', 'rb') as f:
-    #   od_graph_def.ParseFromString(f.read())
-    #   img_tensor_a, prediction_a= tf.import_graph_def(
-    #       od_graph_def,
-    #       return_elements=['ImageTensor:0', 'Prediction:0'])
-    with tf.gfile.FastGFile('./fine_tune/model-803207.pb', 'rb') as f:
+    with tf.gfile.FastGFile('./fine_tune/model-887849.pb', 'rb') as f:
       od_graph_def.ParseFromString(f.read())
-      img_tensor_b, prediction_b= tf.import_graph_def(
+      img_tensor_a, prediction_a= tf.import_graph_def(
           od_graph_def,
           return_elements=['ImageTensor:0', 'Prediction:0'])
-    # with tf.gfile.FastGFile('./fine_tune/model-1583198.pb', 'rb') as f:
+    # with tf.gfile.FastGFile('./fine_tune/model-803207.pb', 'rb') as f:
     #   od_graph_def.ParseFromString(f.read())
-    #   img_tensor_c, prediction_c= tf.import_graph_def(
+    #   img_tensor_b, prediction_b= tf.import_graph_def(
     #       od_graph_def,
     #       return_elements=['ImageTensor:0', 'Prediction:0'])
+    with tf.gfile.FastGFile('./fine_tune/model-1583198.pb', 'rb') as f:
+      od_graph_def.ParseFromString(f.read())
+      img_tensor_c, prediction_c= tf.import_graph_def(
+          od_graph_def,
+          return_elements=['ImageTensor:0', 'Prediction:0'])
     with tf.gfile.FastGFile('./fine_tune/model-1850888.pb', 'rb') as f:
       od_graph_def.ParseFromString(f.read())
       img_tensor_d, prediction_d= tf.import_graph_def(
@@ -111,14 +111,14 @@ def model_test_ensemble():
           img_data = preprocess_fn(s1_data, s2_data).astype(np.float32)
 
           feed_dict = {
-              # img_tensor_a: img_data,
-              img_tensor_b: img_data,
-              # img_tensor_c: img_data,
+              img_tensor_a: img_data,
+              # img_tensor_b: img_data,
+              img_tensor_c: img_data,
               img_tensor_d: img_data,
               }
-          pred_b, pred_d = sess.run([prediction_b, prediction_d], feed_dict)
+          pred_a, pred_c, pred_d = sess.run([prediction_a, prediction_c, prediction_d], feed_dict)
 
-          pred_logits = (pred_b[0, 1:] + pred_d[0, 1:]) / 2
+          pred_logits = pred_a[0, 1:] + (pred_c[0, 1:] + pred_d[0, 1:]) / 2
           pred = np.zeros([17], np.uint8)
           pred[np.argmax(pred_logits)] = 1
           pred_rows.append(pred)

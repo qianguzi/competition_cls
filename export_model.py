@@ -15,12 +15,12 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './fine_tune/model.ckpt-417857', 'Checkpoint path')
-flags.DEFINE_string('export_path', './fine_tune/model-417857.pb',
+flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-295863', 'Checkpoint path')
+flags.DEFINE_string('export_path', './train_log/model-295863.pb',
                     'Path to output Tensorflow frozen graph.')
-flags.DEFINE_multi_integer('input_shape', [32, 32, 7], 'The shape of input image.')
+flags.DEFINE_multi_integer('input_shape', [512, 512, 4], 'The shape of input image.')
 flags.DEFINE_integer('channel', 0, 'Number of channel.')
-flags.DEFINE_integer('image_size', 96, 'Input image resolution')
+flags.DEFINE_integer('image_size', 112, 'Input image resolution')
 flags.DEFINE_integer('output_stride', 16,
                      'The ratio of input to output spatial resolution.')
 # Input name of the exported model.
@@ -28,6 +28,7 @@ _INPUT_NAME = 'ImageTensor'
 
 # Output name of the exported model.
 _OUTPUT_NAME = 'Prediction'
+_OUTPUT_COUNTS_NAME = 'CountsPrediction'
 
 
 def main(unused_argv):
@@ -55,10 +56,13 @@ def main(unused_argv):
       _, end_points = model.classification(net, end_points, 
                                            num_classes=FLAGS.num_classes,
                                            is_training=False)
-
+    if FLAGS.add_counts_logits:
+      _, end_points = model.classification(net, end_points, num_classes=6,
+                                              is_training=False, scope='Counts_logits')
     #prediction = tf.argmax(end_points['Predictions'], 1)
     #prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)
-    prediction = tf.identity(end_points['Predictions'], name=_OUTPUT_NAME)
+    prediction = tf.identity(end_points['Logits_Predictions'], name=_OUTPUT_NAME)
+    counts_prediction = tf.identity(end_points['Counts_logits_Predictions'], name=_OUTPUT_COUNTS_NAME)
 
     saver = tf.train.Saver(tf.model_variables())
 
@@ -67,7 +71,7 @@ def main(unused_argv):
         tf.get_default_graph().as_graph_def(add_shapes=True),
         saver.as_saver_def(),
         FLAGS.checkpoint_path,
-        _OUTPUT_NAME,
+        _OUTPUT_NAME+','+_OUTPUT_COUNTS_NAME,
         restore_op_name=None,
         filename_tensor_name=None,
         output_graph=FLAGS.export_path,
