@@ -66,7 +66,7 @@ flags.DEFINE_float('weight_decay', 0.0001,
 # Set to False and use small batch size to save GPU memory.
 flags.DEFINE_boolean('fine_tune_batch_norm', True,
                      'Fine tune the batch norm parameters or not.')
-flags.DEFINE_integer('output_stride', 16,
+flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
 
 FLAGS = flags.FLAGS
