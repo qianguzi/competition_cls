@@ -86,6 +86,7 @@ def get_dataset(dataset_name, dataset_dir, split_name,
   if split_name not in splits_to_sizes:
     raise ValueError('data split name %s not recognized' % split_name)
 
+  num_samples = splits_to_sizes[split_name]
   # Specify how the TF-Examples are decoded.
   keys_to_features = DATASETS_INFORMATION[dataset_name].keys_to_features
   items_to_handlers = DATASETS_INFORMATION[dataset_name].items_to_handlers
@@ -96,7 +97,6 @@ def get_dataset(dataset_name, dataset_dir, split_name,
   file_pattern = _FILE_PATTERN
 
   if is_training:
-    num_samples = DATASETS_INFORMATION[dataset_name].total_samples - splits_to_sizes[split_name]
     with tf.name_scope(scope, 'Dataset_quene'):
       image_class_list = []
       label_class_list = []
@@ -105,8 +105,7 @@ def get_dataset(dataset_name, dataset_dir, split_name,
         counts_class_list = []
       for class_name in idx_to_name.values():
         class_dir = os.path.join(dataset_dir, dataset_name, class_name)
-        files = glob(os.path.join(class_dir, file_pattern % dataset_name))
-        #files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
+        files = glob(os.path.join(class_dir, file_pattern % split_name))
         dataset = slim.dataset.Dataset(
                       data_sources=files,
                       reader=tf.TFRecordReader,
@@ -134,11 +133,10 @@ def get_dataset(dataset_name, dataset_dir, split_name,
         samples['counts'] = counts
       return samples, num_samples
   else:
-    num_samples = splits_to_sizes[split_name]
     files = []
-    # for class_name in idx_to_name.values():
-    #   files.append(os.path.join(dataset_dir, dataset_name, class_name, file_pattern % split_name))
-    files.append(os.path.join(dataset_dir, dataset_name, 'Nuclear_membrane', file_pattern % split_name))
+    for class_name in idx_to_name.values():
+      files.append(os.path.join(dataset_dir, dataset_name, class_name, file_pattern % split_name))
+    # files.append(os.path.join(dataset_dir, dataset_name, 'Nuclear_membrane', file_pattern % split_name))
     dataset = slim.dataset.Dataset(
                   data_sources=files,
                   reader=tf.TFRecordReader,

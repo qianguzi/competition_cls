@@ -32,8 +32,8 @@ flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
 flags.DEFINE_integer('train_batch_size', 2, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 2000000,
                      'Number of training steps to perform before stopping')
-flags.DEFINE_integer('image_size', 112, 'Input image resolution')
-flags.DEFINE_string('fine_tune_checkpoint', '',
+flags.DEFINE_integer('image_size', 256, 'Input image resolution')
+flags.DEFINE_string('fine_tune_checkpoint', None,
                     'Checkpoint from which to start finetuning.')
 # Set to False if one does not want to re-use the trained classifier weights.
 flags.DEFINE_boolean('initialize_last_layer', False,
@@ -157,16 +157,16 @@ def main(unused_arg):
   clone_batch_size = FLAGS.train_batch_size // config.num_clones
 
   tf.gfile.MakeDirs(FLAGS.train_dir)
-  tf.logging.info('Training on %s set', FLAGS.train_split)
 
   with tf.Graph().as_default() as graph:
     with tf.device(config.inputs_device()):
-      samples, _ = get_dataset.get_dataset(FLAGS.dataset, FLAGS.dataset_dir,
+      samples, num_samples = get_dataset.get_dataset(FLAGS.dataset, FLAGS.dataset_dir,
                                            split_name=FLAGS.train_split,
                                            is_training=True,
                                            image_size=[FLAGS.image_size, FLAGS.image_size],
                                            batch_size=clone_batch_size,
                                            channel=FLAGS.input_channel)
+      tf.logging.info('Training on %s set: %d', FLAGS.train_split, num_samples)
       inputs_queue = prefetch_queue.prefetch_queue(
           samples, capacity=128 * config.num_clones)
       # Create the global step on the device storing the variables.
@@ -207,7 +207,7 @@ def main(unused_arg):
       total_loss, grads_and_vars = model_deploy.optimize_clones(
           clones, optimizer)
       total_loss = tf.check_numerics(total_loss, 'Loss is inf or nan.')
-      summaries.add(tf.summary.scalar('total_loss', total_loss))
+      summaries.add(tf.summary.scalar('losses/total_loss', total_loss))
 
       # Modify the gradients for biases and last layer variables.
       if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
@@ -239,7 +239,7 @@ def main(unused_arg):
     session_config = tf.ConfigProto(
         allow_soft_placement=True, log_device_placement=False)
     session_config.gpu_options.allow_growth = True
-    session_config.gpu_options.per_process_gpu_memory_fraction = 0.8
+    session_config.gpu_options.per_process_gpu_memory_fraction = 0.9
 
     # Start the training.
     slim.learning.train(
@@ -266,6 +266,5 @@ def main(unused_arg):
 
 if __name__ == '__main__':
   flags.mark_flag_as_required('train_dir')
-  flags.mark_flag_as_required('fine_tune_checkpoint')
   flags.mark_flag_as_required('dataset_dir')
   tf.app.run()

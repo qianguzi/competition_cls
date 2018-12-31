@@ -210,6 +210,7 @@ def _gather_clone_loss(clone, num_clones, regularization_losses):
   sum_loss = None
   # Individual components of the loss that will need summaries.
   clone_loss = None
+  regularization_loss = None
   # Compute and aggregate losses on the clone device.
   with tf.device(clone.device):
     all_losses = []
