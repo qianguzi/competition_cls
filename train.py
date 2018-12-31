@@ -145,8 +145,8 @@ def build_model():
     cls_loss = tf.get_collection(tf.GraphKeys.LOSSES)
     for loss in cls_loss:
       summaries.add(tf.summary.scalar('sub_losses/%s'%(loss.op.name), loss))
-    cls_loss = tf.reduce_mean(cls_loss, name='cls_loss')
-    summaries.add(tf.summary.scalar('losses/cls_loss', cls_loss))
+    cls_loss = tf.add_n(cls_loss, name='classifation_loss')
+    summaries.add(tf.summary.scalar('losses/classifation_loss', cls_loss))
     regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     regularization_loss = tf.add_n(regularization_loss, name='regularization_loss')
     summaries.add(tf.summary.scalar('losses/regularization_loss', regularization_loss))
@@ -216,7 +216,6 @@ def train_model():
         save_interval_secs=FLAGS.save_interval_secs,
         init_fn=get_checkpoint_init_fn(),
         summary_op=summary_op,
-        global_step=tf.train.get_global_step(),
         saver=tf.train.Saver(max_to_keep=50))
 
 

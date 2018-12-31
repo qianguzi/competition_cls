@@ -31,8 +31,8 @@ def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=No
     predictions = tf.to_float(predictions)
     labels = tf.to_float(labels)
     predictions.get_shape().assert_is_compatible_with(labels.get_shape())
-    focal_factor = tf.multiply(labels, 1-predictions + epsilon) - tf.multiply(
-            (1 - labels), predictions + epsilon)
+    focal_factor = tf.multiply(labels, 1-predictions) + tf.multiply(
+            (1 - labels), predictions)
     losses = -tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
             (1 - labels), tf.log(1 - predictions + epsilon))
     losses = losses * (focal_factor ** gamma)

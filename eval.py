@@ -20,17 +20,17 @@ flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 1, 'Batch size')
-flags.DEFINE_integer('image_size', 112, 'Input image resolution')
+flags.DEFINE_integer('image_size', 256, 'Input image resolution')
 # flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
 # flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
 # flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-flags.DEFINE_string('checkpoint_dir', '/home/jun/mynb/lcz/train_log/model.ckpt-98847', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', '/home/jun/mynb/lcz/train_log/model.ckpt-25653', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', '/home/jun/mynb/lcz/val_log', 'Directory for writing eval event logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'protein-002',
+flags.DEFINE_string('eval_split', 'protein-02',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
@@ -41,7 +41,7 @@ flags.DEFINE_integer('output_stride', 16,
                      'The ratio of input to output spatial resolution.')
 flags.DEFINE_boolean('use_slim', False,
                      'Whether to use slim for eval or not.')
-flags.DEFINE_float('threshould', 0.19, 'The momentum value to use')
+flags.DEFINE_float('threshould', 0.20, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
@@ -55,7 +55,7 @@ def metrics(end_points, labels):
   """
   # Define the evaluation metric.
   metric_map = {}
-  predictions = end_points['Predictions']
+  predictions = end_points['Logits_Predictions']
   labels = tf.cast(labels, tf.int64)
   if FLAGS.multi_label:
     predictions = tf.where(tf.greater_equal(predictions, FLAGS.threshould),
@@ -136,6 +136,9 @@ def eval_model():
     _, end_points = model.classification(net, end_points, 
                                          num_classes=FLAGS.num_classes,
                                          is_training=False)
+    if FLAGS.add_counts_logits:
+      _, end_points = model.classification(net, end_points, num_classes=6,
+                                           is_training=False, scope='Counts_logits')
     eval_ops = metrics(end_points, labels)
     #num_samples = 1000
     num_batches = math.ceil(num_samples / float(FLAGS.batch_size))
@@ -172,17 +175,23 @@ def eval_model():
           mean_iou_list = []
           i = 0
           while not coord.should_stop():
-            logits_np, labels_np = sess.run([end_points['Predictions'], labels])
-            logits_np = logits_np[0]
+            logits_np, counts_np, labels_np = sess.run([end_points['Logits_Predictions'], end_points['Counts_logits_Predictions'], labels])
+            logits_np = logits_np[0][1:]
             labels_np = labels_np[0]
             results = np.argsort(logits_np)[-5:]
             result_logits = np.sort(logits_np)[-5:]
             labels_id = np.where(labels_np == 1)[0]
+            counts_np = counts_np[0]
+            counts = np.argmax(counts_np)
+            prediction_id = results[(-counts):]
             i += 1
             print('Image[{0}]:\nlabels:{1}, \nresults: {2}, \nresult_logits: {3}'.format(i, labels_id, results, result_logits))
             max_id = np.argmax(logits_np)
             logits_np[max_id] = 1
             predictions_np = np.where(logits_np > FLAGS.threshould, 1, 0)
+            # predictions_np = np.zeros([28])
+            # for ids in prediction_id:
+            #    predictions_np[ids] = 1
             insection = labels_np * predictions_np
             insection = np.sum(insection)
             union = np.where(labels_np + predictions_np > 0, 1, 0)

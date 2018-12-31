@@ -16,7 +16,7 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-25653', 'Checkpoint path')
-flags.DEFINE_string('export_path', './train_log/model-25653.pb',
+flags.DEFINE_string('export_path', './result/protein/model-25653.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_multi_integer('input_shape', [512, 512, 4], 'The shape of input image.')
 flags.DEFINE_integer('channel', 0, 'Number of channel.')
