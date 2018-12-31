@@ -18,7 +18,7 @@ flags.DEFINE_string('test_dataset_path',
 #flags.DEFINE_string('test_dataset_path',
 #                    './round1_test_a_20181109.h5',
 #                    'Folder containing dataset.')
-flags.DEFINE_string('save_path', './result',
+flags.DEFINE_string('save_path', './result/protein',
                     'Path to output submission file.')
 flags.DEFINE_float('threshould', 0.19, 'The momentum value to use')
 
@@ -28,7 +28,7 @@ def model_test():
   g = tf.Graph()
   with g.as_default():
     od_graph_def = tf.GraphDef()
-    with tf.gfile.FastGFile(os.path.join(FLAGS.save_path, 'model-295863.pb'), 'rb') as f:
+    with tf.gfile.FastGFile(os.path.join(FLAGS.save_path, 'model-25653.pb'), 'rb') as f:
         od_graph_def.ParseFromString(f.read())
         img_tensor, prediction, counts_prediction = tf.import_graph_def(
                 od_graph_def,
