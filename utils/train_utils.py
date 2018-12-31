@@ -39,62 +39,6 @@ def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=No
     return tf.losses.compute_weighted_loss(losses, weights, scope)
 
 
-def add_softmax_cross_entropy_loss_for_each_scale(scales_to_logits,
-                                                  labels,
-                                                  num_classes,
-                                                  ignore_label,
-                                                  loss_weight=1.0,
-                                                  upsample_logits=True,
-                                                  scope=None):
-  """Adds softmax cross entropy loss for logits of each scale.
-
-  Args:
-    scales_to_logits: A map from logits names for different scales to logits.
-      The logits have shape [batch, logits_height, logits_width, num_classes].
-    labels: Groundtruth labels with shape [batch, image_height, image_width, 1].
-    num_classes: Integer, number of target classes.
-    ignore_label: Integer, label to ignore.
-    loss_weight: Float, loss weight.
-    upsample_logits: Boolean, upsample logits or not.
-    scope: String, the scope for the loss.
-
-  Raises:
-    ValueError: Label or logits is None.
-  """
-  if labels is None:
-    raise ValueError('No label for softmax cross entropy loss.')
-
-  for scale, logits in six.iteritems(scales_to_logits):
-    loss_scope = None
-    if scope:
-      loss_scope = '%s_%s' % (scope, scale)
-
-    if upsample_logits:
-      # Label is not downsampled, and instead we upsample logits.
-      logits = tf.image.resize_bilinear(
-          logits,
-          preprocess_utils.resolve_shape(labels, 4)[1:3],
-          align_corners=True)
-      scaled_labels = labels
-    else:
-      # Label is downsampled to the same size as logits.
-      scaled_labels = tf.image.resize_nearest_neighbor(
-          labels,
-          preprocess_utils.resolve_shape(logits, 4)[1:3],
-          align_corners=True)
-
-    scaled_labels = tf.reshape(scaled_labels, shape=[-1])
-    not_ignore_mask = tf.to_float(tf.not_equal(scaled_labels,
-                                               ignore_label)) * loss_weight
-    one_hot_labels = slim.one_hot_encoding(
-        scaled_labels, num_classes, on_value=1.0, off_value=0.0)
-    tf.losses.softmax_cross_entropy(
-        one_hot_labels,
-        tf.reshape(logits, shape=[-1, num_classes]),
-        weights=not_ignore_mask,
-        scope=loss_scope)
-
-
 def get_model_init_fn(train_logdir,
                       tf_initial_checkpoint,
                       initialize_last_layer,

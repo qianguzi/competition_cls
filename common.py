@@ -22,7 +22,7 @@ flags.DEFINE_float('depth_multiplier', 1.0,
                    'convolution ops used in MobileNet.')
 flags.DEFINE_boolean('hierarchical_cls', False,
                      'Whether to apply hierarchical classification.')
-flags.DEFINE_boolean('multi_label', True,
+flags.DEFINE_boolean('multi_label', False,
                      'Whether label is multi-label or not.')
 flags.DEFINE_boolean('add_counts_logits', True,
                      'Whether to add counts logits.')
