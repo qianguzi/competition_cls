@@ -28,7 +28,7 @@ def model_test():
   g = tf.Graph()
   with g.as_default():
     od_graph_def = tf.GraphDef()
-    with tf.gfile.FastGFile(os.path.join(FLAGS.save_path, 'model-25653.pb'), 'rb') as f:
+    with tf.gfile.FastGFile(os.path.join(FLAGS.save_path, 'model.pb'), 'rb') as f:
         od_graph_def.ParseFromString(f.read())
         img_tensor, prediction, counts_prediction = tf.import_graph_def(
                 od_graph_def,
