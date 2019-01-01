@@ -45,11 +45,11 @@ flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
                   'Learning rate policy for training.')
 # Use 0.007 when training on PASCAL augmented training set, train_aug. When
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
-flags.DEFINE_float('base_learning_rate', .001,
+flags.DEFINE_float('base_learning_rate', .005,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.98,
                    'The rate to decay the base learning rate.')
-flags.DEFINE_integer('learning_rate_decay_step', 1000,
+flags.DEFINE_integer('learning_rate_decay_step', 2500,
                      'Decay the base learning rate at a fixed step.')
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
@@ -88,9 +88,9 @@ def build_model():
                                          image_size=[FLAGS.image_size, FLAGS.image_size],
                                          batch_size=FLAGS.batch_size,
                                          channel=FLAGS.input_channel)
-    batch_size = FLAGS.batch_size * (FLAGS.num_classes - 1)
+    batch_size = FLAGS.batch_size * FLAGS.num_classes
     inputs = tf.identity(samples['image'], name='image')
-    labels = tf.identity(tf.concat([tf.zeros([batch_size, 1]), samples['label']], -1), name='label')
+    labels = tf.identity(samples['label'] name='label')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
         inputs,
@@ -105,8 +105,8 @@ def build_model():
       with tf.name_scope('Multilabel_logits'):
         logits = slim.softmax(logits)
         half_batch_size = batch_size / 2
-        train_utils.focal_loss(labels[:, 0], logits[:, 0], scope='class_loss_00')
-        for i in range(1, FLAGS.num_classes):
+        cls_loss = []
+        for i in range(FLAGS.num_classes):
           class_logits = tf.identity(logits[:, i], name='class_logits_%02d'%(i))
           class_labels = tf.identity(labels[:, i], name='class_labels_%02d'%(i))
           num_positive = tf.reduce_sum(class_labels)
@@ -114,19 +114,22 @@ def build_model():
           weights = tf.where(tf.equal(class_labels, 1.0),
                              tf.tile([half_batch_size/num_positive], [batch_size]),
                              tf.tile([half_batch_size/num_negative], [batch_size]))
-          train_utils.focal_loss(class_labels, class_logits,
-                                 weights=weights, scope='class_loss_%02d'%(i))
+          class_loss = train_utils.focal_loss(class_labels, class_logits,
+                                              weights=weights, scope='class_loss_%02d'%(i))
+          cls_loss.append(class_loss)
+        cls_loss = tf.reduce_mean(cls_loss, name='cls_loss')
     else:
       logits = slim.softmax(logits)
-      train_utils.focal_loss(labels, logits, scope='cls_loss')
+      cls_loss = train_utils.focal_loss(labels, logits, scope='cls_loss')
 
     if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
-      counts = tf.identity(samples['counts'], name='counts')
-      one_hot_counts = slim.one_hot_encoding(counts, 6)
-      counts_logits, _ = model.classification(net, end_points, num_classes=6,
+      counts = tf.identity(samples['counts']-1, name='counts')
+      one_hot_counts = slim.one_hot_encoding(counts, 5)
+      counts_logits, _ = model.classification(net, end_points, num_classes=5,
                                               is_training=True, scope='Counts_logits')
       counts_logits = slim.softmax(counts_logits)
-      train_utils.focal_loss(one_hot_counts, counts_logits, scope='counts_loss')
+      counts_loss = train_utils.focal_loss(one_hot_counts, counts_logits, scope='counts_loss')
+      cls_loss = cls_loss + 0.5 * counts_loss
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     # Gather initial summaries.
@@ -142,11 +145,10 @@ def build_model():
     #opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
-    cls_loss = tf.get_collection(tf.GraphKeys.LOSSES)
-    for loss in cls_loss:
+    for loss in tf.get_collection(tf.GraphKeys.LOSSES):
       summaries.add(tf.summary.scalar('sub_losses/%s'%(loss.op.name), loss))
-    cls_loss = tf.add_n(cls_loss, name='classifation_loss')
-    summaries.add(tf.summary.scalar('losses/classifation_loss', cls_loss))
+    classifation_loss = tf.identity(cls_loss, name='classifation_loss')
+    summaries.add(tf.summary.scalar('losses/classifation_loss', classifation_loss))
     regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     regularization_loss = tf.add_n(regularization_loss, name='regularization_loss')
     summaries.add(tf.summary.scalar('losses/regularization_loss', regularization_loss))

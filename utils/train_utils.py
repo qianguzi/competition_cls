@@ -35,7 +35,7 @@ def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=No
             (1 - labels), predictions)
     losses = -tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
             (1 - labels), tf.log(1 - predictions + epsilon))
-    losses = losses * (focal_factor ** gamma)
+    losses = 2. * losses * (focal_factor ** gamma)
     return tf.losses.compute_weighted_loss(losses, weights, scope)
 
 

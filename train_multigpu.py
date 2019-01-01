@@ -63,7 +63,7 @@ flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.98,
                    'The rate to decay the base learning rate.')
-flags.DEFINE_integer('learning_rate_decay_step', 1000,
+flags.DEFINE_integer('learning_rate_decay_step', 2500,
                      'Decay the base learning rate at a fixed step.')
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
@@ -97,9 +97,9 @@ def _build_model(inputs_queue, clone_batch_size):
     A dictionary of logits names to logits.
   """
   samples = inputs_queue.dequeue()
-  batch_size = clone_batch_size * (FLAGS.num_classes - 1)
+  batch_size = clone_batch_size * FLAGS.num_classes
   inputs = tf.identity(samples['image'], name='image')
-  labels = tf.identity(tf.concat([tf.zeros([batch_size, 1]), samples['label']], -1), name='label')
+  labels = tf.identity(samples['label'], name='label')
   model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
   net, end_points = model.get_features(
       inputs,
@@ -114,7 +114,6 @@ def _build_model(inputs_queue, clone_batch_size):
     with tf.name_scope('Multilabel_logits'):
       logits = slim.softmax(logits)
       half_batch_size = batch_size / 2
-      train_utils.focal_loss(labels[:, 0], logits[:, 0], scope='class_loss_00')
       for i in range(1, FLAGS.num_classes):
         class_logits = tf.identity(logits[:, i], name='class_logits_%02d'%(i))
         class_labels = tf.identity(labels[:, i], name='class_labels_%02d'%(i))
@@ -130,9 +129,9 @@ def _build_model(inputs_queue, clone_batch_size):
     train_utils.focal_loss(labels, logits, scope='cls_loss')
 
   if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
-    counts = tf.identity(samples['counts'], name='counts')
-    one_hot_counts = slim.one_hot_encoding(counts, 6)
-    counts_logits, _ = model.classification(net, end_points, num_classes=6,
+    counts = tf.identity(samples['counts']-1, name='counts')
+    one_hot_counts = slim.one_hot_encoding(counts, 5)
+    counts_logits, _ = model.classification(net, end_points, num_classes=5,
                                             is_training=True, scope='Counts_logits')
     counts_logits = slim.softmax(counts_logits)
     train_utils.focal_loss(one_hot_counts, counts_logits, scope='counts_loss')
@@ -160,16 +159,17 @@ def main(unused_arg):
 
   with tf.Graph().as_default() as graph:
     with tf.device(config.inputs_device()):
-      samples, num_samples = get_dataset.get_dataset(FLAGS.dataset, FLAGS.dataset_dir,
-                                           split_name=FLAGS.train_split,
-                                           is_training=True,
-                                           image_size=[FLAGS.image_size, FLAGS.image_size],
-                                           batch_size=clone_batch_size,
-                                           channel=FLAGS.input_channel)
+      samples, num_samples = get_dataset.get_dataset(
+          FLAGS.dataset, FLAGS.dataset_dir,
+          split_name=FLAGS.train_split,
+          is_training=True,
+          image_size=[FLAGS.image_size, FLAGS.image_size],
+          batch_size=clone_batch_size,
+          channel=FLAGS.input_channel)
       tf.logging.info('Training on %s set: %d', FLAGS.train_split, num_samples)
       inputs_queue = prefetch_queue.prefetch_queue(
           samples, capacity=128 * config.num_clones)
-      # Create the global step on the device storing the variables.
+    # Create the global step on the device storing the variables.
     with tf.device(config.variables_device()):
       global_step = tf.train.get_or_create_global_step()
       # Define the model and create clones.

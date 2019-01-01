@@ -24,8 +24,8 @@ flags.DEFINE_integer('image_size', 256, 'Input image resolution')
 # flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
 # flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
 # flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-flags.DEFINE_string('checkpoint_dir', '/home/jun/mynb/lcz/train_log/model.ckpt-25653', 'The directory for checkpoints')
-flags.DEFINE_string('eval_dir', '/home/jun/mynb/lcz/val_log', 'Directory for writing eval event logs')
+flags.DEFINE_string('checkpoint_dir', './train_log', 'The directory for checkpoints')
+flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
@@ -37,65 +37,41 @@ flags.DEFINE_integer('eval_interval_secs', 60 * 6,
 flags.DEFINE_integer('max_number_of_evaluations', 500,
                      'Maximum number of eval iterations. Will loop '
                      'indefinitely upon nonpositive values.')
-flags.DEFINE_integer('output_stride', 16,
+flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
-flags.DEFINE_boolean('use_slim', False,
+flags.DEFINE_boolean('use_slim', True,
                      'Whether to use slim for eval or not.')
 flags.DEFINE_float('threshould', 0.20, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
-def metrics(end_points, labels):
+def metrics(end_points, labels, counts=None):
   """Specify the metrics for eval.
   Args:
     end_points: Include predictions output from the graph.
     labels: Ground truth labels for inputs.
+    counts: Ground truth counts labels for inputs.
   Returns:
      Eval Op for the graph.
   """
   # Define the evaluation metric.
   metric_map = {}
-  predictions = end_points['Logits_Predictions']
-  labels = tf.cast(labels, tf.int64)
-  if FLAGS.multi_label:
-    predictions = tf.where(tf.greater_equal(predictions, FLAGS.threshould),
-                           tf.ones_like(predictions),
-                           tf.zeros_like(predictions))
-    predictions = tf.cast(predictions, tf.int64)
-    counts_f1, update_f1 = streaming_f1_score.streaming_counts(labels, predictions, FLAGS.num_classes)
-    micro_f1, macro_f1, weight_f1 = streaming_f1_score.streaming_f1(counts_f1)
-    slim.summaries.add_scalar_summary(micro_f1, 'micro_f1', prefix='eval', print_summary=True)
-    slim.summaries.add_scalar_summary(macro_f1, 'macro_f1', prefix='eval', print_summary=True)
-    slim.summaries.add_scalar_summary(weight_f1, 'weight_f1', prefix='eval', print_summary=True)
-    return update_f1
+
+  if FLAGS.add_counts_logits:
+    predictions = end_points['Counts_logits_Predictions']
+    labels = counts - 1
   else:
-    predictions = tf.argmax(predictions, axis=1)
-    predictions = tf.reshape(predictions, shape=[-1])
-    labels_id = tf.argmax(labels, axis=1)
-    labels_id = tf.reshape(labels_id, shape=[-1])
-    metric_map['accuracy'] = tf.metrics.accuracy(labels_id, predictions)
-    metrics_to_values, metrics_to_updates = (
-        tf.contrib.metrics.aggregate_metric_map(metric_map))
+    predictions = end_points['Logits_Predictions']
+    labels = tf.argmax(labels, axis=1)
+  predictions = tf.argmax(predictions, axis=1)
+  metric_map['accuracy'] = tf.metrics.accuracy(labels, predictions)
+  metrics_to_values, metrics_to_updates = (
+      tf.contrib.metrics.aggregate_metric_map(metric_map))
 
-    for metric_name, metric_value in six.iteritems(metrics_to_values):
-      slim.summaries.add_scalar_summary(metric_value, metric_name, prefix='eval', print_summary=False)
+  for metric_name, metric_value in six.iteritems(metrics_to_values):
+    slim.summaries.add_scalar_summary(metric_value, metric_name, prefix='eval', print_summary=True)
 
-    return list(metrics_to_updates.values())
-  # subacc_list = []
-  # subf1_list = []
-  # for i in range(FLAGS.num_classes):
-  #   metric_map['subacc/accuracy_%02d'%i] = tf.metrics.accuracy(labels[:,i], predictions[:,i])
-  #   subacc_list.append(metric_map['subacc/accuracy_%02d'%i][0])
-  #   metric_map['subpre/precision_%02d'%i] = tf.metrics.precision(labels[:,i], predictions[:,i])
-  #   metric_map['subrec/recall_%02d'%i] = tf.metrics.recall(labels[:,i], predictions[:,i])
-  #   class_pre = metric_map['subpre/precision_%02d'%i][0]
-  #   class_rec = metric_map['subrec/recall_%02d'%i][0]
-  #   class_f1 = (2 * class_pre * class_rec) / (class_pre + class_rec)
-  #   subf1_list.append(class_f1)
-  # ave_accuracy = tf.reduce_mean(tf.stack(subacc_list, 0))
-  # f1_score = tf.reduce_mean(tf.stack(subf1_list, 0))
-  # slim.summaries.add_scalar_summary(ave_accuracy, 'ave_accuracy', prefix='eval', print_summary=True)
-  # slim.summaries.add_scalar_summary(f1_score, 'f1_score', prefix='eval', print_summary=True)
+  return list(metrics_to_updates.values())
 
 
 def get_checkpoint_init_fn(fine_tune_checkpoint, include_var=None, exclude_var=None):
@@ -137,9 +113,12 @@ def eval_model():
                                          num_classes=FLAGS.num_classes,
                                          is_training=False)
     if FLAGS.add_counts_logits:
-      _, end_points = model.classification(net, end_points, num_classes=6,
+      counts = tf.identity(samples['counts'], name='counts')
+      _, end_points = model.classification(net, end_points, num_classes=5,
                                            is_training=False, scope='Counts_logits')
-    eval_ops = metrics(end_points, labels)
+      eval_ops = metrics(end_points, labels, counts)
+    else:
+      eval_ops = metrics(end_points, labels)
     #num_samples = 1000
     num_batches = math.ceil(num_samples / float(FLAGS.batch_size))
     tf.logging.info('Eval num images %d', num_samples)
