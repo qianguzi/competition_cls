@@ -2,9 +2,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import six
+import six, sys
 import os, math
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 from tensorflow.contrib import slim
 
@@ -13,6 +14,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 from utils import streaming_f1_score
+from sklearn.metrics import f1_score, precision_score, recall_score
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -24,7 +26,7 @@ flags.DEFINE_integer('image_size', 256, 'Input image resolution')
 # flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
 # flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
 # flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-flags.DEFINE_string('checkpoint_dir', './train_log', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-208489', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
 flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
@@ -39,7 +41,7 @@ flags.DEFINE_integer('max_number_of_evaluations', 500,
                      'indefinitely upon nonpositive values.')
 flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
-flags.DEFINE_boolean('use_slim', True,
+flags.DEFINE_boolean('use_slim', False,
                      'Whether to use slim for eval or not.')
 flags.DEFINE_float('threshould', 0.20, 'The momentum value to use')
 
@@ -114,7 +116,7 @@ def eval_model():
                                          is_training=False)
     if FLAGS.add_counts_logits:
       counts = tf.identity(samples['counts'], name='counts')
-      _, end_points = model.classification(net, end_points, num_classes=5,
+      _, end_points = model.classification(net, end_points, num_classes=6,
                                            is_training=False, scope='Counts_logits')
       eval_ops = metrics(end_points, labels, counts)
     else:
@@ -151,39 +153,71 @@ def eval_model():
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         try:
-          mean_iou_list = []
           i = 0
+          predictions_list = []
+          labels_list = []
           while not coord.should_stop():
-            logits_np, counts_np, labels_np = sess.run([end_points['Logits_Predictions'], end_points['Counts_logits_Predictions'], labels])
-            logits_np = logits_np[0][1:]
+            logits_np, counts_logits_np, labels_np, counts_label = sess.run(
+                [end_points['Logits_Predictions'], end_points['Counts_logits_Predictions'], labels, counts])
+            logits_np = logits_np[0, 1:]
             labels_np = labels_np[0]
-            results = np.argsort(logits_np)[-5:]
-            result_logits = np.sort(logits_np)[-5:]
+            counts_logits_np = counts_logits_np[0]
+            counts_label = counts_label[0]
+            predictions_np = np.zeros([28])
             labels_id = np.where(labels_np == 1)[0]
-            counts_np = counts_np[0]
-            counts = np.argmax(counts_np)
-            prediction_id = results[(-counts):]
+            counts_pre = np.argmax(counts_logits_np)
+            predictions_id = list(np.argsort(logits_np)[(-counts_pre):])
+            for idx in predictions_id:
+              predictions_np[idx] = 1
+            
+            if FLAGS.threshould > 0:
+              predictions_id = list(np.where(logits_np > FLAGS.threshould)[0])
+              predictions_np = np.where(logits_np > FLAGS.threshould, 1, 0)
+              if np.sum(predictions_np) == 0:
+                max_id = np.argmax(logits_np)
+                predictions_np[max_id] = 1
+                predictions_id.append(max_id)
+
+            labels_list.append(labels_np)
+            predictions_list.append(predictions_np)
             i += 1
-            print('Image[{0}]:\nlabels:{1}, \nresults: {2}, \nresult_logits: {3}'.format(i, labels_id, results, result_logits))
-            max_id = np.argmax(logits_np)
-            logits_np[max_id] = 1
-            predictions_np = np.where(logits_np > FLAGS.threshould, 1, 0)
-            # predictions_np = np.zeros([28])
-            # for ids in prediction_id:
-            #    predictions_np[ids] = 1
-            insection = labels_np * predictions_np
-            insection = np.sum(insection)
-            union = np.where(labels_np + predictions_np > 0, 1, 0)
-            union = np.sum(union)
-            iou = insection / union
-            mean_iou = np.mean(iou)
-            mean_iou_list.append(mean_iou)
-            all_mean_iou = np.mean(mean_iou_list)
-            print('Image[{0}]--> iou: {1}, mean iou: {2}'.format(i, mean_iou, all_mean_iou))
+            sys.stdout.write('Image[{0}]--> labels:{1}, predictions: {2}\n'.format(i, labels_id, predictions_id))
+            sys.stdout.flush()
         except tf.errors.OutOfRangeError:
           coord.request_stop()
           coord.join(threads)
-        
+        finally:
+          sys.stdout.write('\n')
+          sys.stdout.flush()
+          all_labels = np.stack(labels_list, 0)
+          all_pre = np.stack(predictions_list, 0)
+          pred_rows = []
+          for class_idx in range(28):
+            class_labels = np.squeeze(all_labels[:, class_idx])
+            class_pre = np.squeeze(all_pre[:, class_idx])
+            class_f1_score = f1_score(class_labels, class_pre)
+            class_precision_score = precision_score(class_labels, class_pre)
+            class_recall_score = recall_score(class_labels, class_pre)
+            sys.stdout.write('Class[{0}]--> F1_score: {1}\n'.format(class_idx, class_f1_score))
+            sys.stdout.flush()
+            pred_rows.append({'Class': str(class_idx),
+                              'F1_score': str(class_f1_score),
+                              'Precision': str(class_precision_score),
+                              'Recall': str(class_recall_score),})
+          all_f1_score = f1_score(all_labels, all_pre, average='macro')
+          all_precision_score = precision_score(all_labels, all_pre, average='macro')
+          all_recall_score = recall_score(all_labels, all_pre, average='macro')
+          pred_rows.append({'Class': 'all',
+                            'F1_score': str(all_f1_score),
+                            'Precision': str(all_precision_score),
+                            'Recall': str(all_recall_score),})
+          sys.stdout.write('F1_score: {0}\n'.format(all_f1_score))
+          sys.stdout.flush()
+          submission_df = pd.DataFrame(pred_rows)[['Class', 'F1_score', 'Precision', 'Recall']]
+          if FLAGS.threshould > 0:
+            submission_df.to_csv(os.path.join('./result', 'protein_eval_%04d.csv'%(int(FLAGS.threshould*10000))), index=False)
+          else:
+            submission_df.to_csv(os.path.join('./result', 'protein_eval_counts.csv'), index=False)
 
 
 def main(unused_arg):
