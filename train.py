@@ -22,7 +22,7 @@ flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
 flags.DEFINE_integer('batch_size', 2, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 2000000,
                      'Number of training steps to perform before stopping')
-flags.DEFINE_integer('image_size', 256, 'Input image resolution')
+flags.DEFINE_integer('image_size', 224, 'Input image resolution')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log',
@@ -45,11 +45,11 @@ flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
                   'Learning rate policy for training.')
 # Use 0.007 when training on PASCAL augmented training set, train_aug. When
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
-flags.DEFINE_float('base_learning_rate', .005,
+flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.98,
                    'The rate to decay the base learning rate.')
-flags.DEFINE_integer('learning_rate_decay_step', 2500,
+flags.DEFINE_integer('learning_rate_decay_step', 5000,
                      'Decay the base learning rate at a fixed step.')
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
@@ -90,7 +90,7 @@ def build_model():
                                          channel=FLAGS.input_channel)
     batch_size = FLAGS.batch_size * FLAGS.num_classes
     inputs = tf.identity(samples['image'], name='image')
-    labels = tf.identity(samples['label'] name='label')
+    labels = tf.identity(samples['label'], name='label')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(
         inputs,
