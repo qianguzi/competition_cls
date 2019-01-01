@@ -19,7 +19,7 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
-flags.DEFINE_integer('batch_size', 1, 'Batch size')
+flags.DEFINE_integer('batch_size', 2, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 2000000,
                      'Number of training steps to perform before stopping')
 flags.DEFINE_integer('image_size', 256, 'Input image resolution')
@@ -203,7 +203,7 @@ def train_model():
   g, train_tensor, summary_op = build_model()
   config = tf.ConfigProto(allow_soft_placement=True)
   config.gpu_options.allow_growth = True
-  config.gpu_options.per_process_gpu_memory_fraction = 0.9
+  # config.gpu_options.per_process_gpu_memory_fraction = 0.9
   with g.as_default():
     slim.learning.train(
         train_tensor,
@@ -218,7 +218,7 @@ def train_model():
         save_interval_secs=FLAGS.save_interval_secs,
         init_fn=get_checkpoint_init_fn(),
         summary_op=summary_op,
-        saver=tf.train.Saver(max_to_keep=50))
+        saver=tf.train.Saver(max_to_keep=20))
 
 
 def main(unused_arg):
