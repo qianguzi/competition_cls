@@ -44,7 +44,7 @@ flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
 flags.DEFINE_boolean('use_slim', False,
                      'Whether to use slim for eval or not.')
-flags.DEFINE_integer('threshould', 2000, 'The momentum value to use')
+flags.DEFINE_integer('threshould', 5000, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
@@ -155,8 +155,9 @@ def eval_model():
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         try:
           i = 0
-          predictions_list = []
-          labels_list = []
+          all_pres = []
+          predictions_counts_list =[]
+          all_labels = []
           while not coord.should_stop():
             logits_np, counts_logits_np, labels_np, counts_label = sess.run(
                 [end_points['Logits_Predictions'], end_points['Counts_logits_Predictions'], labels, counts])
@@ -164,60 +165,65 @@ def eval_model():
             labels_np = labels_np[0]
             counts_label = counts_label[0]
             counts_pre = np.argmax(counts_logits_np[0]) + 1
+            all_labels.append(labels_np)
             predictions_np = np.zeros([28])
             labels_id = np.where(labels_np == 1)[0]
             predictions_id = list(np.argsort(logits_np)[(-counts_pre):])
+            predictions_counts_list.append(predictions_np)
             for idx in predictions_id:
               predictions_np[idx] = 1
-            
-            if FLAGS.threshould > 0:
-              predictions_id = list(np.where(logits_np > (FLAGS.threshould/10000))[0])
-              predictions_np = np.where(logits_np > (FLAGS.threshould/10000), 1, 0)
+            i += 1
+            sys.stdout.write('Image[{0}]--> labels:{1}, predictions: {2}\n'.format(i, labels_id, predictions_id))
+            sys.stdout.flush()
+            predictions_image_list = []
+            for thre in range(1, FLAGS.threshould, 4):
+              predictions_id = list(np.where(logits_np > (thre/10000))[0])
+              predictions_np = np.where(logits_np > (thre/10000), 1, 0)
               if np.sum(predictions_np) == 0:
                 max_id = np.argmax(logits_np)
                 predictions_np[max_id] = 1
                 predictions_id.append(max_id)
-
-            labels_list.append(labels_np)
-            predictions_list.append(predictions_np)
-            i += 1
-            sys.stdout.write('Image[{0}]--> labels:{1}, predictions: {2}\n'.format(i, labels_id, predictions_id))
-            sys.stdout.flush()
+              predictions_image_list.append(predictions_np)
+            all_pres.append(predictions_image_list)
         except tf.errors.OutOfRangeError:
           coord.request_stop()
           coord.join(threads)
         finally:
           sys.stdout.write('\n')
           sys.stdout.flush()
-          all_labels = np.stack(labels_list, 0)
-          all_pre = np.stack(predictions_list, 0)
-          pred_rows = []
-          for class_idx in range(28):
-            class_labels = np.squeeze(all_labels[:, class_idx])
-            class_pre = np.squeeze(all_pre[:, class_idx])
-            class_f1_score = f1_score(class_labels, class_pre)
-            class_precision_score = precision_score(class_labels, class_pre)
-            class_recall_score = recall_score(class_labels, class_pre)
-            sys.stdout.write('Class[{0}]--> F1_score: {1}\n'.format(class_idx, class_f1_score))
-            sys.stdout.flush()
-            pred_rows.append({'Class': str(class_idx),
-                              'F1_score': str(class_f1_score),
-                              'Precision': str(class_precision_score),
-                              'Recall': str(class_recall_score),})
-          all_f1_score = f1_score(all_labels, all_pre, average='macro')
-          all_precision_score = precision_score(all_labels, all_pre, average='macro')
-          all_recall_score = recall_score(all_labels, all_pre, average='macro')
-          pred_rows.append({'Class': 'all',
-                            'F1_score': str(all_f1_score),
-                            'Precision': str(all_precision_score),
-                            'Recall': str(all_recall_score),})
-          sys.stdout.write('F1_score: {0}\n'.format(all_f1_score))
-          sys.stdout.flush()
-          submission_df = pd.DataFrame(pred_rows)[['Class', 'F1_score', 'Precision', 'Recall']]
-          if FLAGS.threshould > 0:
-            submission_df.to_csv(os.path.join('./result', 'protein_eval224_%04d.csv'%(int(FLAGS.threshould))), index=False)
-          else:
-            submission_df.to_csv(os.path.join('./result', 'protein_eval224_counts.csv'), index=False)
+          all_labels = np.stack(all_labels, 0)
+          all_pres = np.transpose(all_pres, (1,0,2))
+          for pre, thre in zip(all_pres, range(1, FLAGS.threshould, 4)):
+            submission_df = metric_eval(all_labels, pre, thre)
+            submission_df.to_csv(os.path.join('./result/protein/224', 'protein_eval_%04d.csv'%(thre)), index=False)
+          all_pres = np.stack(predictions_counts_list, 0)
+          submission_df = metric_eval(all_labels, all_pres)
+          submission_df.to_csv(os.path.join('./result/protein/224', 'protein_eval_counts.csv'), index=False)
+
+
+def metric_eval(all_labels, all_pres, thre=0):
+  pred_rows = []
+  for class_idx in range(28):
+    class_labels = np.squeeze(all_labels[:, class_idx])
+    class_pre = np.squeeze(all_pres[:, class_idx])
+    class_f1_score = f1_score(class_labels, class_pre)
+    class_precision_score = precision_score(class_labels, class_pre)
+    class_recall_score = recall_score(class_labels, class_pre)
+    pred_rows.append({'Class': str(class_idx),
+                      'F1_score': str(class_f1_score),
+                      'Precision': str(class_precision_score),
+                      'Recall': str(class_recall_score),})
+  all_f1_score = f1_score(all_labels, all_pres, average='macro')
+  all_precision_score = precision_score(all_labels, all_pres, average='macro')
+  all_recall_score = recall_score(all_labels, all_pres, average='macro')
+  pred_rows.append({'Class': 'all',
+                    'F1_score': str(all_f1_score),
+                    'Precision': str(all_precision_score),
+                    'Recall': str(all_recall_score),})
+  sys.stdout.write('F1_score_{0}: {1}\n'.format(thre, all_f1_score))
+  sys.stdout.flush()
+  submission_df = pd.DataFrame(pred_rows)[['Class', 'F1_score', 'Precision', 'Recall']]
+  return submission_df
 
 
 def main(unused_arg):
