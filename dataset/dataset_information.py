@@ -15,7 +15,7 @@ _IMAGE_FORMAT_MAP = {
     'png': 'png',
 }
 
-_PROTEIN_CLASS_NAMES = {
+PROTEIN_CLASS_NAMES = {
   0: 'Nucleoplasm',  
   1: 'Nuclear_membrane',   
   2: 'Nucleoli',   
@@ -246,7 +246,7 @@ _PROTEIN_INFORMATION = DatasetDescriptor(
     },
     total_samples=31072,
     num_classes=28,
-    idx_to_name=_PROTEIN_CLASS_NAMES,
+    idx_to_name=PROTEIN_CLASS_NAMES,
     data_to_tfexample_fn=_protein_to_tfexample,
     keys_to_features={
       'green': tf.FixedLenFeature((), tf.string, default_value=''),

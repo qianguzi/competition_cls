@@ -20,9 +20,14 @@ flags.DEFINE_string('test_dataset_path',
 #                    'Folder containing dataset.')
 flags.DEFINE_string('save_path', './result/protein',
                     'Path to output submission file.')
-flags.DEFINE_float('threshould', 0.19, 'The momentum value to use')
+# flags.DEFINE_float('threshould', 0.19, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
+
+_THRESHOULD = [0.1853, 0.1357, 0.1221, 0.2865, 0.2245, 0.1601, 0.1177, 
+               0.1733, 0.0081, 0.0005, 0.0005, 0.1473, 0.2457, 0.2321,
+               0.2389, 0.0013, 0.0429, 0.1421, 0.1245, 0.2277, 0.1625,
+               0.2141, 0.1061, 0.1745, 0.0417, 0.1541, 0.1345, 0.0029]
 
 def model_test():
   g = tf.Graph()
@@ -53,11 +58,12 @@ def model_test():
           
           logits_np = logits_np[0][1:]
           counts_np = counts_np[0]
-          sorted_ids = np.argsort(logits_np)
-          counts = np.argmax(counts_np)
-          prediction_id = sorted_ids[(-counts):]
-          prediction_id = ' '.join(str(x) for x in prediction_id)
-          pred_rows.append({'Id': image_id, 'Predicted': prediction_id})
+          predictions_id = list(np.where(logits_np > _THRESHOULD)[0])
+          if predictions_id is None:
+            max_id = np.argmax(logits_np)
+            predictions_id.append(max_id)
+          predictions_id = ' '.join(str(x) for x in predictions_id)
+          pred_rows.append({'Id': image_id, 'Predicted': predictions_id})
           sys.stdout.write('\r>> Data[{0}/{1}] time cost: {2}'.format(i+1, 11702, time()-start_time))
           sys.stdout.flush()
         sys.stdout.write('\n')

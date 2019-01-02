@@ -20,7 +20,7 @@ flags.DEFINE_string('export_path', './result/protein/model.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_multi_integer('input_shape', [512, 512, 4], 'The shape of input image.')
 flags.DEFINE_integer('channel', 0, 'Number of channel.')
-flags.DEFINE_integer('image_size', 256, 'Input image resolution')
+flags.DEFINE_integer('image_size', 224, 'Input image resolution')
 flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
 # Input name of the exported model.
@@ -57,7 +57,7 @@ def main(unused_argv):
                                            num_classes=FLAGS.num_classes,
                                            is_training=False)
     if FLAGS.add_counts_logits:
-      _, end_points = model.classification(net, end_points, num_classes=6,
+      _, end_points = model.classification(net, end_points, num_classes=5,
                                               is_training=False, scope='Counts_logits')
     #prediction = tf.argmax(end_points['Predictions'], 1)
     #prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)

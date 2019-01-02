@@ -8,13 +8,14 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow.contrib import slim
+from sklearn.metrics import f1_score, precision_score, recall_score
 
 import common, model
 from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 from utils import streaming_f1_score
-from sklearn.metrics import f1_score, precision_score, recall_score
+from dataset.dataset_information import PROTEIN_CLASS_NAMES
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -23,13 +24,10 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 1, 'Batch size')
 flags.DEFINE_integer('image_size', 224, 'Input image resolution')
-# flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
-# flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
-# flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-flags.DEFINE_string('checkpoint_dir', './result/model.ckpt-125715', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-208489', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
+flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
 # flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
-flags.DEFINE_string('dataset_dir', '../dataset', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
@@ -89,6 +87,10 @@ def get_checkpoint_init_fn(fine_tune_checkpoint, include_var=None, exclude_var=N
       slim_init_fn(sess)
     return init_fn
 
+_THRESHOULD = [0.1853, 0.1357, 0.1221, 0.2865, 0.2245, 0.1601, 0.1177, 
+               0.1733, 0.0081, 0.0005, 0.0005, 0.1473, 0.2457, 0.2321,
+               0.2389, 0.0013, 0.0429, 0.1421, 0.1245, 0.2277, 0.1625,
+               0.2141, 0.1061, 0.1745, 0.0417, 0.1541, 0.1345, 0.0029]
 
 def eval_model():
   """Evaluates model."""
@@ -166,15 +168,16 @@ def eval_model():
             counts_label = counts_label[0]
             counts_pre = np.argmax(counts_logits_np[0]) + 1
             all_labels.append(labels_np)
-            predictions_np = np.zeros([28])
             labels_id = np.where(labels_np == 1)[0]
+            predictions_np = np.zeros([28])
             predictions_id = list(np.argsort(logits_np)[(-counts_pre):])
-            predictions_counts_list.append(predictions_np)
             for idx in predictions_id:
               predictions_np[idx] = 1
+            predictions_counts_list.append(predictions_np)
             i += 1
             sys.stdout.write('Image[{0}]--> labels:{1}, predictions: {2}\n'.format(i, labels_id, predictions_id))
             sys.stdout.flush()
+
             predictions_image_list = []
             for thre in range(1, FLAGS.threshould, 4):
               predictions_id = list(np.where(logits_np > (thre/10000))[0])
@@ -191,39 +194,35 @@ def eval_model():
         finally:
           sys.stdout.write('\n')
           sys.stdout.flush()
+          pred_rows = []
           all_labels = np.stack(all_labels, 0)
+          pres_counts = np.stack(predictions_counts_list, 0)
+          pred_rows.append(metric_eval(all_labels, pres_counts))
           all_pres = np.transpose(all_pres, (1,0,2))
           for pre, thre in zip(all_pres, range(1, FLAGS.threshould, 4)):
-            submission_df = metric_eval(all_labels, pre, thre)
-            submission_df.to_csv(os.path.join('./result/protein/224', 'protein_eval_%04d.csv'%(thre)), index=False)
-          all_pres = np.stack(predictions_counts_list, 0)
-          submission_df = metric_eval(all_labels, all_pres)
-          submission_df.to_csv(os.path.join('./result/protein/224', 'protein_eval_counts.csv'), index=False)
+            pred_rows.append(metric_eval(all_labels, pre, thre))
+          columns = ['Thre'] + list(PROTEIN_CLASS_NAMES.values()) + ['All']
+          submission_df = pd.DataFrame(pred_rows)[columns]
+          submission_df.to_csv(os.path.join('./result/protein/256', 'protein_eval.csv'), index=False)
 
 
 def metric_eval(all_labels, all_pres, thre=0):
-  pred_rows = []
-  for class_idx in range(28):
+  pred_dict = {'Thre': str(thre)}
+  for class_idx in PROTEIN_CLASS_NAMES:
     class_labels = np.squeeze(all_labels[:, class_idx])
     class_pre = np.squeeze(all_pres[:, class_idx])
     class_f1_score = f1_score(class_labels, class_pre)
     class_precision_score = precision_score(class_labels, class_pre)
     class_recall_score = recall_score(class_labels, class_pre)
-    pred_rows.append({'Class': str(class_idx),
-                      'F1_score': str(class_f1_score),
-                      'Precision': str(class_precision_score),
-                      'Recall': str(class_recall_score),})
+    pred_dict[PROTEIN_CLASS_NAMES[class_idx]] = ' '.join([str(class_f1_score), 
+        str(class_precision_score), str(class_recall_score)])
   all_f1_score = f1_score(all_labels, all_pres, average='macro')
   all_precision_score = precision_score(all_labels, all_pres, average='macro')
   all_recall_score = recall_score(all_labels, all_pres, average='macro')
-  pred_rows.append({'Class': 'all',
-                    'F1_score': str(all_f1_score),
-                    'Precision': str(all_precision_score),
-                    'Recall': str(all_recall_score),})
+  pred_dict['All'] = ' '.join([str(all_f1_score), str(all_precision_score), str(all_recall_score)])
   sys.stdout.write('F1_score_{0}: {1}\n'.format(thre, all_f1_score))
   sys.stdout.flush()
-  submission_df = pd.DataFrame(pred_rows)[['Class', 'F1_score', 'Precision', 'Recall']]
-  return submission_df
+  return pred_dict
 
 
 def main(unused_arg):
