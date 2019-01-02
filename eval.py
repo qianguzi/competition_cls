@@ -22,13 +22,14 @@ flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 1, 'Batch size')
-flags.DEFINE_integer('image_size', 256, 'Input image resolution')
+flags.DEFINE_integer('image_size', 224, 'Input image resolution')
 # flags.DEFINE_string('checkpoint_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log', 'The directory for checkpoints')
 # flags.DEFINE_string('eval_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/val_log', 'Directory for writing eval event logs')
 # flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-208489', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', './result/model.ckpt-125715', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
-flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
+flags.DEFINE_string('dataset_dir', '../dataset', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
@@ -43,7 +44,7 @@ flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
 flags.DEFINE_boolean('use_slim', False,
                      'Whether to use slim for eval or not.')
-flags.DEFINE_float('threshould', 0.20, 'The momentum value to use')
+flags.DEFINE_integer('threshould', 2000, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
@@ -116,7 +117,7 @@ def eval_model():
                                          is_training=False)
     if FLAGS.add_counts_logits:
       counts = tf.identity(samples['counts'], name='counts')
-      _, end_points = model.classification(net, end_points, num_classes=6,
+      _, end_points = model.classification(net, end_points, num_classes=5,
                                            is_training=False, scope='Counts_logits')
       eval_ops = metrics(end_points, labels, counts)
     else:
@@ -159,20 +160,19 @@ def eval_model():
           while not coord.should_stop():
             logits_np, counts_logits_np, labels_np, counts_label = sess.run(
                 [end_points['Logits_Predictions'], end_points['Counts_logits_Predictions'], labels, counts])
-            logits_np = logits_np[0, 1:]
+            logits_np = logits_np[0]
             labels_np = labels_np[0]
-            counts_logits_np = counts_logits_np[0]
             counts_label = counts_label[0]
+            counts_pre = np.argmax(counts_logits_np[0]) + 1
             predictions_np = np.zeros([28])
             labels_id = np.where(labels_np == 1)[0]
-            counts_pre = np.argmax(counts_logits_np)
             predictions_id = list(np.argsort(logits_np)[(-counts_pre):])
             for idx in predictions_id:
               predictions_np[idx] = 1
             
             if FLAGS.threshould > 0:
-              predictions_id = list(np.where(logits_np > FLAGS.threshould)[0])
-              predictions_np = np.where(logits_np > FLAGS.threshould, 1, 0)
+              predictions_id = list(np.where(logits_np > (FLAGS.threshould/10000))[0])
+              predictions_np = np.where(logits_np > (FLAGS.threshould/10000), 1, 0)
               if np.sum(predictions_np) == 0:
                 max_id = np.argmax(logits_np)
                 predictions_np[max_id] = 1
@@ -215,9 +215,9 @@ def eval_model():
           sys.stdout.flush()
           submission_df = pd.DataFrame(pred_rows)[['Class', 'F1_score', 'Precision', 'Recall']]
           if FLAGS.threshould > 0:
-            submission_df.to_csv(os.path.join('./result', 'protein_eval_%04d.csv'%(int(FLAGS.threshould*10000))), index=False)
+            submission_df.to_csv(os.path.join('./result', 'protein_eval224_%04d.csv'%(int(FLAGS.threshould))), index=False)
           else:
-            submission_df.to_csv(os.path.join('./result', 'protein_eval_counts.csv'), index=False)
+            submission_df.to_csv(os.path.join('./result', 'protein_eval224_counts.csv'), index=False)
 
 
 def main(unused_arg):

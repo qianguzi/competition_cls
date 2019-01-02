@@ -147,15 +147,15 @@ def model_test_ensemble():
 
 
 def logits_ensemble():
-  pred_a = pd.read_csv('./result/logits-803207.csv', sep=',', header=None).values
-  pred_c = pd.read_csv('./result/logits-1850888.csv', sep=',', header=None).values
+  pred_a = pd.read_csv('./fine_tune/logits-887849.csv', sep=',', header=None).values
+  pred_c = pd.read_csv('./fine_tune/test_re.csv', sep=',', header=None).values
   pred_rows = []
   for i in range(4838):
     pred_logits = (pred_a[i] + pred_c[i]) / 2
     pred = np.zeros([17], np.uint8)
     pred[np.argmax(pred_logits)] = 1
     pred_rows.append(pred)
-  np.savetxt(os.path.join(FLAGS.save_path, 'ensemble.csv'), pred_rows, delimiter=",", fmt='%s')
+  np.savetxt('./result/lcz/ensemble-1-1(887849+L).csv', pred_rows, delimiter=",", fmt='%s')
 
 
 if __name__ == '__main__':
