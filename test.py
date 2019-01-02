@@ -5,6 +5,7 @@ from __future__ import print_function
 import sys
 import os, h5py
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 from time import time
 
@@ -18,7 +19,7 @@ flags.DEFINE_string('test_dataset_path',
 #flags.DEFINE_string('test_dataset_path',
 #                    './round1_test_a_20181109.h5',
 #                    'Folder containing dataset.')
-flags.DEFINE_string('save_path', './fine_tune/submission-ensemble.csv',
+flags.DEFINE_string('save_path', './result',
                     'Path to output submission file.')
 flags.DEFINE_string('preprocess_method', 'name', 'The image data preprocess term.')
 
@@ -79,11 +80,11 @@ def model_test_ensemble():
       img_tensor_a, prediction_a= tf.import_graph_def(
           od_graph_def,
           return_elements=['ImageTensor:0', 'Prediction:0'])
-    # with tf.gfile.FastGFile('./fine_tune/model-803207.pb', 'rb') as f:
-    #   od_graph_def.ParseFromString(f.read())
-    #   img_tensor_b, prediction_b= tf.import_graph_def(
-    #       od_graph_def,
-    #       return_elements=['ImageTensor:0', 'Prediction:0'])
+    with tf.gfile.FastGFile('./fine_tune/model-803207.pb', 'rb') as f:
+      od_graph_def.ParseFromString(f.read())
+      img_tensor_b, prediction_b= tf.import_graph_def(
+          od_graph_def,
+          return_elements=['ImageTensor:0', 'Prediction:0'])
     with tf.gfile.FastGFile('./fine_tune/model-1583198.pb', 'rb') as f:
       od_graph_def.ParseFromString(f.read())
       img_tensor_c, prediction_c= tf.import_graph_def(
@@ -99,11 +100,16 @@ def model_test_ensemble():
     s1_test = fid_test['sen1']
     s2_test = fid_test['sen2']
     num_test = int(s1_test.shape[0])
-    
+    # pred_c = pd.read_csv('./result/test_re.csv', sep=',', header=None).values
+
     preprocess_fn = _PREPROCESS_METHOD[FLAGS.preprocess_method]
     with tf.Session() as sess:
         sess.run(init_op)
         pred_rows = []
+        pred_rows_a = []
+        pred_rows_b = []
+        pred_rows_c = []
+        pred_rows_d = []
         start_time = time()
         for idx in range(num_test):
           s1_data = s1_test[idx]
@@ -112,26 +118,45 @@ def model_test_ensemble():
 
           feed_dict = {
               img_tensor_a: img_data,
-              # img_tensor_b: img_data,
+              img_tensor_b: img_data,
               img_tensor_c: img_data,
               img_tensor_d: img_data,
               }
-          pred_a, pred_c, pred_d = sess.run([prediction_a, prediction_c, prediction_d], feed_dict)
+          pred_a, pred_b, pred_c, pred_d = sess.run([prediction_a, prediction_b, prediction_c, prediction_d], feed_dict)
 
-          pred_logits = pred_a[0, 1:] + (pred_c[0, 1:] + pred_d[0, 1:]) / 2
+          pred_logits = (pred_a[0, 1:] + pred_b[0, 1:] + pred_c[0, 1:] + pred_d[0, 1:]) / 4
           pred = np.zeros([17], np.uint8)
           pred[np.argmax(pred_logits)] = 1
           pred_rows.append(pred)
+          pred_rows_a.append(pred_a[0, 1:])
+          pred_rows_b.append(pred_b[0, 1:])
+          pred_rows_c.append(pred_c[0, 1:])
+          pred_rows_d.append(pred_d[0, 1:])
           sys.stdout.write('\r>> Data[{0}/{1}] time cost: {2}'.format(idx+1, num_test, time()-start_time))
           sys.stdout.flush()
         sys.stdout.write('\n')
         sys.stdout.flush()
-        #pred_rows = np.concatenate(pred_rows, 0)
         tf.gfile.MakeDirs(os.path.dirname(FLAGS.save_path))
-        np.savetxt(FLAGS.save_path, pred_rows, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'submission-ensemble.csv'), pred_rows, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-887849.csv'), pred_rows_a, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-803207.csv'), pred_rows_b, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-1583198.csv'), pred_rows_c, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-1850888.csv'), pred_rows_d, delimiter=",", fmt='%s')
         sys.stdout.write('[*]File submission.csv success saved.\n')
         sys.stdout.flush()
 
 
+def logits_ensemble():
+  pred_a = pd.read_csv('./result/logits-803207.csv', sep=',', header=None).values
+  pred_c = pd.read_csv('./result/logits-1850888.csv', sep=',', header=None).values
+  pred_rows = []
+  for i in range(4838):
+    pred_logits = (pred_a[i] + pred_c[i]) / 2
+    pred = np.zeros([17], np.uint8)
+    pred[np.argmax(pred_logits)] = 1
+    pred_rows.append(pred)
+  np.savetxt(os.path.join(FLAGS.save_path, 'ensemble.csv'), pred_rows, delimiter=",", fmt='%s')
+
+
 if __name__ == '__main__':
-  model_test_ensemble()
+  logits_ensemble()

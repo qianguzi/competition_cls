@@ -47,7 +47,7 @@ flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
 flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.98,
+flags.DEFINE_float('learning_rate_decay_factor', 0.96,
                    'The rate to decay the base learning rate.')
 flags.DEFINE_integer('learning_rate_decay_step', 5000,
                      'Decay the base learning rate at a fixed step.')
