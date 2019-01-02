@@ -160,14 +160,16 @@ def eval_model():
           all_pres = []
           predictions_counts_list =[]
           all_labels = []
+          counts_accs = []
           while not coord.should_stop():
             logits_np, counts_logits_np, labels_np, counts_label = sess.run(
                 [end_points['Logits_Predictions'], end_points['Counts_logits_Predictions'], labels, counts])
             logits_np = logits_np[0]
             labels_np = labels_np[0]
+            all_labels.append(labels_np)
             counts_label = counts_label[0]
             counts_pre = np.argmax(counts_logits_np[0]) + 1
-            all_labels.append(labels_np)
+            counts_accs.append(int(counts_label == counts_pre))
             labels_id = np.where(labels_np == 1)[0]
             predictions_np = np.zeros([28])
             predictions_id = list(np.argsort(logits_np)[(-counts_pre):])
@@ -192,7 +194,7 @@ def eval_model():
           coord.request_stop()
           coord.join(threads)
         finally:
-          sys.stdout.write('\n')
+          sys.stdout.write('\nCounts Accuracy: {}\n'.format(np.mean(counts_accs)))
           sys.stdout.flush()
           pred_rows = []
           all_labels = np.stack(all_labels, 0)
@@ -203,7 +205,7 @@ def eval_model():
             pred_rows.append(metric_eval(all_labels, pre, thre))
           columns = ['Thre'] + list(PROTEIN_CLASS_NAMES.values()) + ['All']
           submission_df = pd.DataFrame(pred_rows)[columns]
-          submission_df.to_csv(os.path.join('./result/protein/256', 'protein_eval.csv'), index=False)
+          submission_df.to_csv(os.path.join('./result/protein', 'protein_eval.csv'), index=False)
 
 
 def metric_eval(all_labels, all_pres, thre=0):
@@ -220,8 +222,8 @@ def metric_eval(all_labels, all_pres, thre=0):
   all_precision_score = precision_score(all_labels, all_pres, average='macro')
   all_recall_score = recall_score(all_labels, all_pres, average='macro')
   pred_dict['All'] = ' '.join([str(all_f1_score), str(all_precision_score), str(all_recall_score)])
-  sys.stdout.write('F1_score_{0}: {1}\n'.format(thre, all_f1_score))
-  sys.stdout.flush()
+  # sys.stdout.write('F1_score_{0}: {1}\n'.format(thre, all_f1_score))
+  # sys.stdout.flush()
   return pred_dict
 
 
