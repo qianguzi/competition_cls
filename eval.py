@@ -33,7 +33,7 @@ flags.DEFINE_string('dataset_dir', '../dataset', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'protein-02',
+flags.DEFINE_string('eval_split', 'protein',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
@@ -130,7 +130,7 @@ def eval_model():
     # session_config = tf.ConfigProto(device_count={'GPU': 0})
     session_config = tf.ConfigProto(allow_soft_placement=True)
     session_config.gpu_options.allow_growth = True
-    session_config.gpu_options.per_process_gpu_memory_fraction = 0.3
+    session_config.gpu_options.per_process_gpu_memory_fraction = 0.2
     if FLAGS.use_slim:
       num_eval_iters = None
       if FLAGS.max_number_of_evaluations > 0:
