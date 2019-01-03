@@ -10,6 +10,8 @@ import pandas as pd
 import tensorflow as tf
 from time import time
 
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+
 flags = tf.app.flags
 
 flags.DEFINE_string('test_dataset_path',
@@ -41,7 +43,9 @@ def model_test():
                 return_elements=['ImageTensor:0', 'Prediction:0', 'CountsPrediction:0'])
     init_op = tf.global_variables_initializer()
     test_data = pd.read_csv(os.path.join(FLAGS.test_dataset_path, 'sample_submission.csv'))
-    with tf.Session() as sess:
+    session_config = tf.ConfigProto(allow_soft_placement=True)
+    session_config.gpu_options.allow_growth = True
+    with tf.Session(config=session_config) as sess:
         sess.run(init_op)
         pred_rows = []
         start_time = time()
