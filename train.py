@@ -13,7 +13,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 flags = tf.app.flags
 

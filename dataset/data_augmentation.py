@@ -95,8 +95,7 @@ def preprocess_for_train(image, height, width, scope=None):
     # Randomly flip the image horizontally.
     distorted_image = tf.image.random_flip_left_right(distorted_image)
     # Randomly rotate the image.
-    random_angles = tf.random.uniform(shape=(tf.shape(distorted_image)[0], ),
-                                      minval=-np.pi, maxval=np.pi)
+    random_angles = tf.random_uniform([], minval=-np.pi, maxval=np.pi, dtype=tf.float32)
     distorted_image = rotate(distorted_image, random_angles)
     # Randomly distort the colors.
     distorted_image = apply_with_random_selector(
