@@ -1,3 +1,4 @@
+# pylint: disable=E1129, E1101
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -23,15 +24,15 @@ flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 1, 'Batch size')
-flags.DEFINE_integer('image_size', 224, 'Input image resolution')
-flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-208489', 'The directory for checkpoints')
+flags.DEFINE_integer('image_size', 320, 'Input image resolution')
+flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-190165', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
 flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
 # flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'protein',
+flags.DEFINE_string('eval_split', 'protein-02',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
@@ -87,10 +88,6 @@ def get_checkpoint_init_fn(fine_tune_checkpoint, include_var=None, exclude_var=N
       slim_init_fn(sess)
     return init_fn
 
-_THRESHOULD = [0.1853, 0.1357, 0.1221, 0.2865, 0.2245, 0.1601, 0.1177, 
-               0.1733, 0.0081, 0.0005, 0.0005, 0.1473, 0.2457, 0.2321,
-               0.2389, 0.0013, 0.0429, 0.1421, 0.1245, 0.2277, 0.1625,
-               0.2141, 0.1061, 0.1745, 0.0417, 0.1541, 0.1345, 0.0029]
 
 def eval_model():
   """Evaluates model."""

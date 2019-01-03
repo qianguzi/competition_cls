@@ -1,3 +1,4 @@
+# pylint: disable=E1129, E1101, W0612
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -5,7 +6,7 @@ from __future__ import print_function
 import os
 import tensorflow as tf
 from tensorflow.contrib import slim
-from tensorflow.python.tools import freeze_graph
+from tensorflow.python.tools import freeze_graph # pylint: disable=E0611
 
 from net.mobilenet import mobilenet_v2
 from dataset import data_augmentation
@@ -15,12 +16,12 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-193793', 'Checkpoint path')
+flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-190165', 'Checkpoint path')
 flags.DEFINE_string('export_path', './result/protein/model.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_multi_integer('input_shape', [512, 512, 4], 'The shape of input image.')
 flags.DEFINE_integer('channel', 0, 'Number of channel.')
-flags.DEFINE_integer('image_size', 224, 'Input image resolution')
+flags.DEFINE_integer('image_size', 320, 'Input image resolution')
 flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
 # Input name of the exported model.
@@ -40,8 +41,8 @@ def main(unused_argv):
     inputs = data_augmentation.preprocess_image(
         input_image, FLAGS.image_size, FLAGS.image_size, is_training=False)
     if FLAGS.channel:
-      #inputs = inputs[:,:,:FLAGS.channel]
-      inputs = inputs[:,:,3:]
+      inputs = inputs[:,:,:FLAGS.channel]
+      # inputs = inputs[:,:,3:]
     inputs = tf.expand_dims(inputs, 0)
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
     net, end_points = model.get_features(

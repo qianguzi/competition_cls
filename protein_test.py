@@ -1,3 +1,4 @@
+# pylint: disable=E1129, E1101
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -15,9 +16,9 @@ flags.DEFINE_string('test_dataset_path',
                     # '/media/jun/data/protein',
                     '/mnt/home/hdd/hdd1/home/LiaoL/Kaggle/Protein/dataset',
                     'Folder containing dataset.')
-#flags.DEFINE_string('test_dataset_path',
-#                    './round1_test_a_20181109.h5',
-#                    'Folder containing dataset.')
+# flags.DEFINE_string('test_dataset_path',
+#                     './round1_test_a_20181109.h5',
+#                     'Folder containing dataset.')
 flags.DEFINE_string('save_path', './result/protein',
                     'Path to output submission file.')
 # flags.DEFINE_float('threshould', 0.19, 'The momentum value to use')
@@ -56,7 +57,7 @@ def model_test():
 
           logits_np, counts_np = sess.run([prediction, counts_prediction], {img_tensor: image_data})
           
-          logits_np = logits_np[0][1:]
+          logits_np = logits_np[0]
           counts_np = counts_np[0]
           predictions_id = list(np.where(logits_np > _THRESHOULD)[0])
           if predictions_id is None:

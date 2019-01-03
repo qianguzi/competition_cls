@@ -1,3 +1,4 @@
+# pylint: disable=E1129, E1101
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -19,10 +20,10 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('task', 0, 'Task')
 flags.DEFINE_integer('ps_tasks', 0, 'Number of ps')
-flags.DEFINE_integer('batch_size', 2, 'Batch size')
+flags.DEFINE_integer('batch_size', 1, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 2000000,
                      'Number of training steps to perform before stopping')
-flags.DEFINE_integer('image_size', 224, 'Input image resolution')
+flags.DEFINE_integer('image_size', 320, 'Input image resolution')
 flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log',
@@ -88,7 +89,7 @@ def build_model():
                                          image_size=[FLAGS.image_size, FLAGS.image_size],
                                          batch_size=FLAGS.batch_size,
                                          channel=FLAGS.input_channel)
-    batch_size = FLAGS.batch_size * FLAGS.num_classes
+
     inputs = tf.identity(samples['image'], name='image')
     labels = tf.identity(samples['label'], name='label')
     model_options = common.ModelOptions(output_stride=FLAGS.output_stride)
@@ -101,26 +102,9 @@ def build_model():
     logits, _ = model.classification(net, end_points, 
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)
-    if FLAGS.multi_label:
-      with tf.name_scope('Multilabel_logits'):
-        logits = slim.softmax(logits)
-        half_batch_size = batch_size / 2
-        cls_loss = []
-        for i in range(FLAGS.num_classes):
-          class_logits = tf.identity(logits[:, i], name='class_logits_%02d'%(i))
-          class_labels = tf.identity(labels[:, i], name='class_labels_%02d'%(i))
-          num_positive = tf.reduce_sum(class_labels)
-          num_negative = batch_size - num_positive
-          weights = tf.where(tf.equal(class_labels, 1.0),
-                             tf.tile([half_batch_size/num_positive], [batch_size]),
-                             tf.tile([half_batch_size/num_negative], [batch_size]))
-          class_loss = train_utils.focal_loss(class_labels, class_logits,
-                                              weights=weights, scope='class_loss_%02d'%(i))
-          cls_loss.append(class_loss)
-        cls_loss = tf.reduce_mean(cls_loss, name='cls_loss')
-    else:
-      logits = slim.softmax(logits)
-      cls_loss = train_utils.focal_loss(labels, logits, scope='cls_loss')
+    logits = slim.softmax(logits)
+    cls_loss = train_utils.focal_loss(labels, logits)
+    cls_loss = cls_loss + train_utils.f1_loss(labels, logits)
 
     if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
       counts = tf.identity(samples['counts']-1, name='counts')

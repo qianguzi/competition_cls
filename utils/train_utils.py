@@ -21,21 +21,45 @@ from tensorflow.contrib import slim
 from utils import preprocess_utils
 
 
+def f1_loss(labels, predictions, weights=1.0, epsilon=1e-7, scope=None):
+  if labels is None:
+    raise ValueError("labels must not be None.")
+  if predictions is None:
+    raise ValueError("predictions must not be None.")
+  with tf.name_scope(scope, "f1_loss",
+                     (predictions, labels, weights)) as scope:
+    predictions = tf.to_float(predictions)
+    labels = tf.to_float(labels)
+    predictions.get_shape().assert_is_compatible_with(labels.get_shape())
+    tp = tf.reduce_sum(tf.multiply(labels, predictions), axis=0)
+    tn = tf.reduce_sum(tf.multiply(1 - labels, 1 - predictions), axis=0)
+    fp = tf.reduce_sum(tf.multiply(1 - labels, predictions), axis=0)
+    fn = tf.reduce_sum(tf.multiply(labels, 1 - predictions), axis=0)
+
+    p = tf.divide(tp, tp + fp + epsilon)
+    r = tf.divide(tp, tp + fn + epsilon)
+
+    f1 = tf.divide(2 * p * r , p + r + epsilon)
+    f1 = tf.where(tf.is_nan(f1), tf.zeros_like(f1), f1)
+    losses = 1 - tf.reduce_mean(f1)
+    return tf.losses.compute_weighted_loss(losses, weights, scope)
+
+
 def focal_loss(labels, predictions, gamma=2, weights=1.0, epsilon=1e-7, scope=None):
   if labels is None:
     raise ValueError("labels must not be None.")
   if predictions is None:
     raise ValueError("predictions must not be None.")
   with tf.name_scope(scope, "focal_loss",
-                      (predictions, labels, weights)) as scope:
+                     (predictions, labels, weights)) as scope:
     predictions = tf.to_float(predictions)
     labels = tf.to_float(labels)
     predictions.get_shape().assert_is_compatible_with(labels.get_shape())
-    focal_factor = tf.multiply(labels, 1-predictions) + tf.multiply(
+    focal_factor = tf.multiply(labels, 1 - predictions) + tf.multiply(
             (1 - labels), predictions)
-    losses = -tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
+    losses = - tf.multiply(labels, tf.log(predictions + epsilon)) - tf.multiply(
             (1 - labels), tf.log(1 - predictions + epsilon))
-    losses = 3. * losses * (focal_factor ** gamma)
+    losses = losses * (focal_factor ** gamma)
     return tf.losses.compute_weighted_loss(losses, weights, scope)
 
 

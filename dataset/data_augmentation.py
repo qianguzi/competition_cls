@@ -4,9 +4,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
 import tensorflow as tf
-
-from tensorflow.python.ops import control_flow_ops
+from tensorflow.contrib import slim
+from tensorflow.contrib.image import rotate # pylint: disable=E0611
+from tensorflow.python.ops import control_flow_ops # pylint: disable=E0611
 
 
 def apply_with_random_selector(x, func, num_cases):
@@ -47,11 +49,11 @@ def distort_color(image, color_ordering=0, scope=None):
   """
   with tf.name_scope(scope, 'distort_color', [image]):
     if color_ordering == 0:
-      image = tf.image.random_brightness(image, max_delta=64. / 255.)
-      image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
+      image = tf.image.random_brightness(image, max_delta=32. / 255.)
+      image = tf.image.random_contrast(image, lower=0.75, upper=1.5)
     elif color_ordering == 1:
-      image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-      image = tf.image.random_brightness(image, max_delta=64. / 255.)
+      image = tf.image.random_contrast(image, lower=0.75, upper=1.5)
+      image = tf.image.random_brightness(image, max_delta=32. / 255.)
     else:
         raise ValueError('color_ordering must be in [0, 1]')
 
@@ -92,7 +94,10 @@ def preprocess_for_train(image, height, width, scope=None):
 
     # Randomly flip the image horizontally.
     distorted_image = tf.image.random_flip_left_right(distorted_image)
-
+    # Randomly rotate the image.
+    random_angles = tf.random.uniform(shape=(tf.shape(distorted_image)[0], ),
+                                      minval=-np.pi, maxval=np.pi)
+    distorted_image = rotate(distorted_image, random_angles)
     # Randomly distort the colors.
     distorted_image = apply_with_random_selector(
         distorted_image,
