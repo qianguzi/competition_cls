@@ -18,19 +18,19 @@ from dataset import get_dataset
 from utils import streaming_f1_score
 from dataset.dataset_information import PROTEIN_CLASS_NAMES
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 flags = tf.app.flags
 
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 1, 'Batch size')
 flags.DEFINE_integer('image_size', 320, 'Input image resolution')
-flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-75000', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
-# flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
-#flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
-#                    'Location of dataset.')
+flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
+#                     'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
 flags.DEFINE_string('eval_split', 'protein-02',
                     'Which split of the dataset used for evaluation')

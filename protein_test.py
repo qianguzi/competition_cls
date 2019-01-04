@@ -26,10 +26,10 @@ flags.DEFINE_string('save_path', './result/protein',
 
 FLAGS = flags.FLAGS
 
-_THRESHOULD = [0.0457, 0.0953, 0.0921, 0.1265, 0.0149, 0.3209, 0.1713, 
-               0.1061, 0.6000, 0.1421, 0.6000, 0.6000, 0.6000, 0.6000,
-               0.1665, 0.6000, 0.3017, 0.6000, 0.3249, 0.2305, 0.0717,
-               0.1269, 0.3593, 0.0737, 0.1681, 0.0653, 0.6000, 0.6000]
+_THRESHOULD = [0.0490, 0.3086, 0.2402, 0.0448, 0.0163, 0.2506, 0.1127, 
+               0.3618, 0.7000, 0.1899, 0.7000, 0.7000, 0.7000, 0.7000,
+               0.1016, 0.7000, 0.7000, 0.7000, 0.2125, 0.7000, 0.0692,
+               0.1597, 0.2240, 0.2186, 0.1448, 0.1039, 0.7000, 0.7000]
 
 def model_test():
   g = tf.Graph()
@@ -62,7 +62,7 @@ def model_test():
 
           logits_np = logits_np[0]
           predictions_id = list(np.where(logits_np > _THRESHOULD)[0])
-          if predictions_id is None:
+          if len(predictions_id) == 0:
             max_id = np.argmax(logits_np)
             predictions_id.append(max_id)
           predictions_id = ' '.join(str(x) for x in predictions_id)
