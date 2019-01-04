@@ -25,10 +25,10 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 1, 'Batch size')
 flags.DEFINE_integer('image_size', 320, 'Input image resolution')
-flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-190165', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-75000', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
-flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-# flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
+flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
 #flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                    'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
@@ -43,28 +43,28 @@ flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
 flags.DEFINE_boolean('use_slim', False,
                      'Whether to use slim for eval or not.')
-flags.DEFINE_integer('threshould', 5000, 'The momentum value to use')
+flags.DEFINE_integer('threshould', 9000, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
-def metrics(end_points, labels, counts=None):
+_THRESHOULD = [0.0457, 0.0953, 0.0921, 0.1265, 0.0149, 0.3209, 0.1713, 
+               0.1061, 0.6000, 0.1421, 0.6000, 0.6000, 0.6000, 0.6000,
+               0.1665, 0.6000, 0.3017, 0.6000, 0.3249, 0.2305, 0.0717,
+               0.1269, 0.3593, 0.0737, 0.1681, 0.0653, 0.6000, 0.6000]
+
+def metrics(end_points, labels):
   """Specify the metrics for eval.
   Args:
     end_points: Include predictions output from the graph.
     labels: Ground truth labels for inputs.
-    counts: Ground truth counts labels for inputs.
   Returns:
      Eval Op for the graph.
   """
   # Define the evaluation metric.
   metric_map = {}
 
-  if FLAGS.add_counts_logits:
-    predictions = end_points['Counts_logits_Predictions']
-    labels = counts - 1
-  else:
-    predictions = end_points['Logits_Predictions']
-    labels = tf.argmax(labels, axis=1)
+  predictions = end_points['Logits_Predictions']
+  labels = tf.argmax(labels, axis=1)
   predictions = tf.argmax(predictions, axis=1)
   metric_map['accuracy'] = tf.metrics.accuracy(labels, predictions)
   metrics_to_values, metrics_to_updates = (
@@ -72,7 +72,6 @@ def metrics(end_points, labels, counts=None):
 
   for metric_name, metric_value in six.iteritems(metrics_to_values):
     slim.summaries.add_scalar_summary(metric_value, metric_name, prefix='eval', print_summary=True)
-
   return list(metrics_to_updates.values())
 
 
@@ -114,13 +113,7 @@ def eval_model():
     _, end_points = model.classification(net, end_points, 
                                          num_classes=FLAGS.num_classes,
                                          is_training=False)
-    if FLAGS.add_counts_logits:
-      counts = tf.identity(samples['counts'], name='counts')
-      _, end_points = model.classification(net, end_points, num_classes=5,
-                                           is_training=False, scope='Counts_logits')
-      eval_ops = metrics(end_points, labels, counts)
-    else:
-      eval_ops = metrics(end_points, labels)
+    eval_ops = metrics(end_points, labels)
     #num_samples = 1000
     num_batches = math.ceil(num_samples / float(FLAGS.batch_size))
     tf.logging.info('Eval num images %d', num_samples)
@@ -155,30 +148,28 @@ def eval_model():
         try:
           i = 0
           all_pres = []
-          predictions_counts_list =[]
+          predictions_custom_list =[]
           all_labels = []
-          counts_accs = []
           while not coord.should_stop():
-            logits_np, counts_logits_np, labels_np, counts_label = sess.run(
-                [end_points['Logits_Predictions'], end_points['Counts_logits_Predictions'], labels, counts])
+            logits_np, labels_np = sess.run(
+                [end_points['Logits_Predictions'], labels])
             logits_np = logits_np[0]
             labels_np = labels_np[0]
             all_labels.append(labels_np)
-            counts_label = counts_label[0]
-            counts_pre = np.argmax(counts_logits_np[0]) + 1
-            counts_accs.append(int(counts_label == counts_pre))
             labels_id = np.where(labels_np == 1)[0]
-            predictions_np = np.zeros([28])
-            predictions_id = list(np.argsort(logits_np)[(-counts_pre):])
-            for idx in predictions_id:
-              predictions_np[idx] = 1
-            predictions_counts_list.append(predictions_np)
+            predictions_id = list(np.where(logits_np > (_THRESHOULD))[0])
+            predictions_np = np.where(logits_np > (_THRESHOULD), 1, 0)
+            if np.sum(predictions_np) == 0:
+              max_id = np.argmax(logits_np)
+              predictions_np[max_id] = 1
+              predictions_id.append(max_id)
+            predictions_custom_list.append(predictions_np)
             i += 1
             sys.stdout.write('Image[{0}]--> labels:{1}, predictions: {2}\n'.format(i, labels_id, predictions_id))
             sys.stdout.flush()
 
             predictions_image_list = []
-            for thre in range(1, FLAGS.threshould, 4):
+            for thre in range(1, FLAGS.threshould, 1):
               predictions_id = list(np.where(logits_np > (thre/10000))[0])
               predictions_np = np.where(logits_np > (thre/10000), 1, 0)
               if np.sum(predictions_np) == 0:
@@ -191,14 +182,17 @@ def eval_model():
           coord.request_stop()
           coord.join(threads)
         finally:
-          sys.stdout.write('\nCounts Accuracy: {}\n'.format(np.mean(counts_accs)))
+          sys.stdout.write('\n')
           sys.stdout.flush()
           pred_rows = []
           all_labels = np.stack(all_labels, 0)
-          pres_counts = np.stack(predictions_counts_list, 0)
-          pred_rows.append(metric_eval(all_labels, pres_counts))
+          pres_custom = np.stack(predictions_custom_list, 0)
+          eval_custom = metric_eval(all_labels, pres_custom)
+          sys.stdout.write('Eval[f1_score, precision, recall]: {}\n'.format(eval_custom['All']))
+          sys.stdout.flush()
+          pred_rows.append(eval_custom)
           all_pres = np.transpose(all_pres, (1,0,2))
-          for pre, thre in zip(all_pres, range(1, FLAGS.threshould, 4)):
+          for pre, thre in zip(all_pres, range(1, FLAGS.threshould, 1)):
             pred_rows.append(metric_eval(all_labels, pre, thre))
           columns = ['Thre'] + list(PROTEIN_CLASS_NAMES.values()) + ['All']
           submission_df = pd.DataFrame(pred_rows)[columns]
@@ -219,8 +213,6 @@ def metric_eval(all_labels, all_pres, thre=0):
   all_precision_score = precision_score(all_labels, all_pres, average='macro')
   all_recall_score = recall_score(all_labels, all_pres, average='macro')
   pred_dict['All'] = ' '.join([str(all_f1_score), str(all_precision_score), str(all_recall_score)])
-  # sys.stdout.write('F1_score_{0}: {1}\n'.format(thre, all_f1_score))
-  # sys.stdout.flush()
   return pred_dict
 
 

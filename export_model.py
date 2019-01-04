@@ -16,7 +16,7 @@ flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-190165', 'Checkpoint path')
+flags.DEFINE_string('checkpoint_path', './train_log/model.ckpt-75000', 'Checkpoint path')
 flags.DEFINE_string('export_path', './result/protein/model.pb',
                     'Path to output Tensorflow frozen graph.')
 flags.DEFINE_multi_integer('input_shape', [512, 512, 4], 'The shape of input image.')
@@ -29,8 +29,6 @@ _INPUT_NAME = 'ImageTensor'
 
 # Output name of the exported model.
 _OUTPUT_NAME = 'Prediction'
-_OUTPUT_COUNTS_NAME = 'CountsPrediction'
-
 
 def main(unused_argv):
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -57,13 +55,8 @@ def main(unused_argv):
       _, end_points = model.classification(net, end_points, 
                                            num_classes=FLAGS.num_classes,
                                            is_training=False)
-    if FLAGS.add_counts_logits:
-      _, end_points = model.classification(net, end_points, num_classes=5,
-                                              is_training=False, scope='Counts_logits')
-    #prediction = tf.argmax(end_points['Predictions'], 1)
-    #prediction = slim.one_hot_encoding(prediction, FLAGS.num_classes)
+
     prediction = tf.identity(end_points['Logits_Predictions'], name=_OUTPUT_NAME)
-    counts_prediction = tf.identity(end_points['Counts_logits_Predictions'], name=_OUTPUT_COUNTS_NAME)
 
     saver = tf.train.Saver(tf.model_variables())
 
@@ -72,7 +65,7 @@ def main(unused_argv):
         tf.get_default_graph().as_graph_def(add_shapes=True),
         saver.as_saver_def(),
         FLAGS.checkpoint_path,
-        _OUTPUT_NAME+','+_OUTPUT_COUNTS_NAME,
+        _OUTPUT_NAME,
         restore_op_name=None,
         filename_tensor_name=None,
         output_graph=FLAGS.export_path,

@@ -22,8 +22,6 @@ flags.DEFINE_float('depth_multiplier', 1.0,
                    'convolution ops used in MobileNet.')
 flags.DEFINE_boolean('hierarchical_cls', False,
                      'Whether to apply hierarchical classification.')
-flags.DEFINE_boolean('add_counts_logits', False,
-                     'Whether to add counts logits.')
 flags.DEFINE_integer('input_channel', 0, 'The channel of input image.')
 
 FLAGS = flags.FLAGS
