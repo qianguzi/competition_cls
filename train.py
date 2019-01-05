@@ -13,7 +13,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 flags = tf.app.flags
 
@@ -24,7 +24,7 @@ flags.DEFINE_integer('batch_size', 1, 'Batch size')
 flags.DEFINE_integer('number_of_steps', 2000000,
                      'Number of training steps to perform before stopping')
 flags.DEFINE_integer('image_size', 320, 'Input image resolution')
-flags.DEFINE_string('fine_tune_checkpoint', './fine_tune/model.ckpt',
+flags.DEFINE_string('fine_tune_checkpoint', '',
                     'Checkpoint from which to start finetuning.')
 flags.DEFINE_string('train_dir', '/mnt/home/hdd/hdd1/home/junq/lcz/train_log',
 # flags.DEFINE_string('train_dir', '/home/jun/mynb/lcz/train_log',
@@ -46,11 +46,11 @@ flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
                   'Learning rate policy for training.')
 # Use 0.007 when training on PASCAL augmented training set, train_aug. When
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
-flags.DEFINE_float('base_learning_rate', .00005,
+flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.96,
                    'The rate to decay the base learning rate.')
-flags.DEFINE_integer('learning_rate_decay_step', 4000,
+flags.DEFINE_integer('learning_rate_decay_step', 2500,
                      'Decay the base learning rate at a fixed step.')
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
@@ -61,7 +61,7 @@ flags.DEFINE_float('slow_start_learning_rate', 1e-4,
 flags.DEFINE_float('momentum', 0.9, 'The momentum value to use')
 # For weight_decay, use 0.00004 for MobileNet-V2 or Xcpetion model variants.
 # Use 0.0001 for ResNet model variants.
-flags.DEFINE_float('weight_decay', 0.0002,
+flags.DEFINE_float('weight_decay', 0.0001,
                    'The value of the weight decay for training.')
 # Set to True if one wants to fine-tune the batch norm parameters in DeepLabv3.
 # Set to False and use small batch size to save GPU memory.
@@ -103,17 +103,9 @@ def build_model():
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)
     logits = slim.softmax(logits)
-    cls_loss = train_utils.focal_loss(labels, logits, weights=2.0)
+    cls_loss = train_utils.focal_loss(labels, logits, weights=1.0)
     cls_loss = cls_loss + train_utils.f1_loss(labels, logits)
 
-    if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
-      counts = tf.identity(samples['counts']-1, name='counts')
-      one_hot_counts = slim.one_hot_encoding(counts, 5)
-      counts_logits, _ = model.classification(net, end_points, num_classes=5,
-                                              is_training=True, scope='Counts_logits')
-      counts_logits = slim.softmax(counts_logits)
-      counts_loss = train_utils.focal_loss(one_hot_counts, counts_logits, scope='counts_loss')
-      cls_loss = cls_loss + 0.5 * counts_loss
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     # Gather initial summaries.
@@ -125,8 +117,8 @@ def build_model():
           FLAGS.learning_rate_decay_step, FLAGS.learning_rate_decay_factor,
           FLAGS.number_of_steps, FLAGS.learning_power,
           FLAGS.slow_start_step, FLAGS.slow_start_learning_rate)
-    # opt = tf.train.AdamOptimizer(learning_rate)
-    opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
+    opt = tf.train.AdamOptimizer(learning_rate)
+    # opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
     for loss in tf.get_collection(tf.GraphKeys.LOSSES):
