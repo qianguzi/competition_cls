@@ -10,7 +10,7 @@ import pandas as pd
 import tensorflow as tf
 from time import time
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 flags = tf.app.flags
 
@@ -26,10 +26,10 @@ flags.DEFINE_string('save_path', './result/protein',
 
 FLAGS = flags.FLAGS
 
-_THRESHOULD = [0.0490, 0.3086, 0.2402, 0.0448, 0.0163, 0.2506, 0.1127, 
-               0.3618, 0.7000, 0.1899, 0.7000, 0.7000, 0.7000, 0.7000,
-               0.1016, 0.7000, 0.7000, 0.7000, 0.2125, 0.7000, 0.0692,
-               0.1597, 0.2240, 0.2186, 0.1448, 0.1039, 0.7000, 0.7000]
+_THRESHOULD = [0.0584, 0.0954, 0.1204, 0.0713, 0.0161, 0.2228, 0.2883, 
+               0.2698, 0.0302, 0.0011, 0.0032, 0.1454, 0.2980, 0.0148,
+               0.3065, 0.0037, 0.0763, 0.0390, 0.1100, 0.2415, 0.0129,
+               0.0941, 0.2650, 0.0608, 0.0069, 0.1058, 0.0240, 0.0139]
 
 def model_test():
   g = tf.Graph()

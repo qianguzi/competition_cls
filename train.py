@@ -50,7 +50,7 @@ flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.96,
                    'The rate to decay the base learning rate.')
-flags.DEFINE_integer('learning_rate_decay_step', 2500,
+flags.DEFINE_integer('learning_rate_decay_step', 2000,
                      'Decay the base learning rate at a fixed step.')
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
@@ -103,8 +103,7 @@ def build_model():
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)
     logits = slim.softmax(logits)
-    cls_loss = train_utils.focal_loss(labels, logits, weights=1.0)
-    cls_loss = cls_loss + train_utils.f1_loss(labels, logits)
+    cls_loss = train_utils.focal_loss(labels, logits, weights=1.0) + train_utils.f1_loss(labels, logits, weights=0.5)
 
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)

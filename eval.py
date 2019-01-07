@@ -18,7 +18,7 @@ from dataset import get_dataset
 from utils import streaming_f1_score
 from dataset.dataset_information import PROTEIN_CLASS_NAMES
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 flags = tf.app.flags
 
@@ -47,10 +47,10 @@ flags.DEFINE_integer('threshould', 9000, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
-_THRESHOULD = [0.0457, 0.0953, 0.0921, 0.1265, 0.0149, 0.3209, 0.1713, 
-               0.1061, 0.6000, 0.1421, 0.6000, 0.6000, 0.6000, 0.6000,
-               0.1665, 0.6000, 0.3017, 0.6000, 0.3249, 0.2305, 0.0717,
-               0.1269, 0.3593, 0.0737, 0.1681, 0.0653, 0.6000, 0.6000]
+_THRESHOULD = [0.0523, 0.0896, 0.1198, 0.0201, 0.0229, 0.2436, 0.1087, 
+               0.1688, 0.1071, 0.0007, 0.0017, 0.2636, 0.1848, 0.0272,
+               0.2158, 0.0266, 0.1287, 0.1340, 0.1657, 0.1612, 0.0345,
+               0.1000, 0.1853, 0.0921, 0.0067, 0.1324, 0.0323, 0.0132]
 
 def metrics(end_points, labels):
   """Specify the metrics for eval.
