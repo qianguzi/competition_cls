@@ -97,6 +97,7 @@ def get_dataset(dataset_name, dataset_dir, split_name,
   file_pattern = _FILE_PATTERN
 
   if is_training:
+    num_samples = DATASETS_INFORMATION[dataset_name].total_samples - splits_to_sizes[split_name]
     with tf.name_scope(scope, 'Dataset_quene'):
       image_class_list = []
       label_class_list = []
@@ -105,7 +106,9 @@ def get_dataset(dataset_name, dataset_dir, split_name,
         counts_class_list = []
       for class_name in idx_to_name.values():
         class_dir = os.path.join(dataset_dir, dataset_name, class_name)
-        files = glob(os.path.join(class_dir, file_pattern % split_name))
+        files = glob(os.path.join(class_dir, file_pattern % dataset_name))
+        files.remove(glob(os.path.join(class_dir, file_pattern % split_name))[0])
+        # files = glob(os.path.join(class_dir, file_pattern % split_name))
         dataset = slim.dataset.Dataset(
                       data_sources=files,
                       reader=tf.TFRecordReader,

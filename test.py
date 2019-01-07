@@ -163,7 +163,7 @@ def logits_ensemble():
 
 from collections import Counter
 
-def logits_ensemble_toupiao():
+def logits_ensemble_vote():
   pred_a = pd.read_csv('./fine_tune/logits-b-887849.csv', sep=',', header=None).values
   pred_b = pd.read_csv('./fine_tune/logits-b-1850888.csv', sep=',', header=None).values
   pred_c = pd.read_csv('./fine_tune/test_b_Liao_797.csv', sep=',', header=None).values
@@ -182,7 +182,7 @@ def logits_ensemble_toupiao():
     pred = np.zeros([17], np.uint8)
     pred[pred_idx] = 1
     pred_rows.append(pred)
-  np.savetxt('./result/submission-b-toupiao(887849+1850888+L0+L1+L2+H).csv', pred_rows, delimiter=",", fmt='%s')
+  np.savetxt('./result/submission-b-vote(887849+1850888+L0+L1+L2+H).csv', pred_rows, delimiter=",", fmt='%s')
 
 if __name__ == '__main__':
   logits_ensemble()
