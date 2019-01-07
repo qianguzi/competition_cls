@@ -13,7 +13,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 flags = tf.app.flags
 
@@ -50,7 +50,7 @@ flags.DEFINE_float('base_learning_rate', .001,
                    'The base learning rate for model training.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.96,
                    'The rate to decay the base learning rate.')
-flags.DEFINE_integer('learning_rate_decay_step', 5000,
+flags.DEFINE_integer('learning_rate_decay_step', 2000,
                      'Decay the base learning rate at a fixed step.')
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
@@ -103,17 +103,8 @@ def build_model():
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)
     logits = slim.softmax(logits)
-    cls_loss = train_utils.focal_loss(labels, logits)
-    cls_loss = cls_loss + train_utils.f1_loss(labels, logits)
+    cls_loss = train_utils.focal_loss(labels, logits, weights=1.0) + train_utils.f1_loss(labels, logits, weights=0.5)
 
-    if (FLAGS.dataset == 'protein') and FLAGS.add_counts_logits:
-      counts = tf.identity(samples['counts']-1, name='counts')
-      one_hot_counts = slim.one_hot_encoding(counts, 5)
-      counts_logits, _ = model.classification(net, end_points, num_classes=5,
-                                              is_training=True, scope='Counts_logits')
-      counts_logits = slim.softmax(counts_logits)
-      counts_loss = train_utils.focal_loss(one_hot_counts, counts_logits, scope='counts_loss')
-      cls_loss = cls_loss + 0.5 * counts_loss
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     # Gather initial summaries.
@@ -126,7 +117,7 @@ def build_model():
           FLAGS.number_of_steps, FLAGS.learning_power,
           FLAGS.slow_start_step, FLAGS.slow_start_learning_rate)
     opt = tf.train.AdamOptimizer(learning_rate)
-    #opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
+    # opt = tf.train.RMSPropOptimizer(learning_rate, momentum=FLAGS.momentum)
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
     for loss in tf.get_collection(tf.GraphKeys.LOSSES):

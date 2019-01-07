@@ -10,7 +10,7 @@ import pandas as pd
 import tensorflow as tf
 from time import time
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 flags = tf.app.flags
 
@@ -26,10 +26,10 @@ flags.DEFINE_string('save_path', './result/protein',
 
 FLAGS = flags.FLAGS
 
-_THRESHOULD = [0.0457, 0.0953, 0.0921, 0.1265, 0.0149, 0.3209, 0.1713, 
-               0.1061, 0.6000, 0.1421, 0.6000, 0.6000, 0.6000, 0.6000,
-               0.1665, 0.6000, 0.3017, 0.6000, 0.3249, 0.2305, 0.0717,
-               0.1269, 0.3593, 0.0737, 0.1681, 0.0653, 0.6000, 0.6000]
+_THRESHOULD = [0.0584, 0.0954, 0.1204, 0.0713, 0.0161, 0.2228, 0.2883, 
+               0.2698, 0.0302, 0.0011, 0.0032, 0.1454, 0.2980, 0.0148,
+               0.3065, 0.0037, 0.0763, 0.0390, 0.1100, 0.2415, 0.0129,
+               0.0941, 0.2650, 0.0608, 0.0069, 0.1058, 0.0240, 0.0139]
 
 def model_test():
   g = tf.Graph()
@@ -62,7 +62,7 @@ def model_test():
 
           logits_np = logits_np[0]
           predictions_id = list(np.where(logits_np > _THRESHOULD)[0])
-          if predictions_id is None:
+          if len(predictions_id) == 0:
             max_id = np.argmax(logits_np)
             predictions_id.append(max_id)
           predictions_id = ' '.join(str(x) for x in predictions_id)

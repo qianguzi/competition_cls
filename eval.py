@@ -25,12 +25,12 @@ flags = tf.app.flags
 flags.DEFINE_string('master', '', 'Session master')
 flags.DEFINE_integer('batch_size', 1, 'Batch size')
 flags.DEFINE_integer('image_size', 320, 'Input image resolution')
-flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt-75000', 'The directory for checkpoints')
+flags.DEFINE_string('checkpoint_dir', './train_log/model.ckpt', 'The directory for checkpoints')
 flags.DEFINE_string('eval_dir', './val_log', 'Directory for writing eval event logs')
-# flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
-flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
-#flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
-#                    'Location of dataset.')
+flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/media/jun/data/tfrecord', 'Location of dataset.')
+# flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
+#                     'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
 flags.DEFINE_string('eval_split', 'protein-02',
                     'Which split of the dataset used for evaluation')
@@ -47,10 +47,10 @@ flags.DEFINE_integer('threshould', 9000, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
-_THRESHOULD = [0.0457, 0.0953, 0.0921, 0.1265, 0.0149, 0.3209, 0.1713, 
-               0.1061, 0.6000, 0.1421, 0.6000, 0.6000, 0.6000, 0.6000,
-               0.1665, 0.6000, 0.3017, 0.6000, 0.3249, 0.2305, 0.0717,
-               0.1269, 0.3593, 0.0737, 0.1681, 0.0653, 0.6000, 0.6000]
+_THRESHOULD = [0.0523, 0.0896, 0.1198, 0.0201, 0.0229, 0.2436, 0.1087, 
+               0.1688, 0.1071, 0.0007, 0.0017, 0.2636, 0.1848, 0.0272,
+               0.2158, 0.0266, 0.1287, 0.1340, 0.1657, 0.1612, 0.0345,
+               0.1000, 0.1853, 0.0921, 0.0067, 0.1324, 0.0323, 0.0132]
 
 def metrics(end_points, labels):
   """Specify the metrics for eval.
