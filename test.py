@@ -14,7 +14,7 @@ from dataset import data_preprocess
 flags = tf.app.flags
 
 flags.DEFINE_string('test_dataset_path',
-                    '/home/data/lcz/test/round1_test_a_20181109.h5',
+                    '/home/data/lcz/test/round1_test_b_20190104.h5',
                     'Folder containing dataset.')
 #flags.DEFINE_string('test_dataset_path',
 #                    './round1_test_a_20181109.h5',
@@ -124,7 +124,7 @@ def model_test_ensemble():
               }
           pred_a, pred_b, pred_c, pred_d = sess.run([prediction_a, prediction_b, prediction_c, prediction_d], feed_dict)
 
-          pred_logits = (pred_a[0, 1:] + pred_b[0, 1:] + pred_c[0, 1:] + pred_d[0, 1:]) / 4
+          pred_logits = (pred_a[0, 1:] + pred_d[0, 1:]) / 2
           pred = np.zeros([17], np.uint8)
           pred[np.argmax(pred_logits)] = 1
           pred_rows.append(pred)
@@ -137,28 +137,52 @@ def model_test_ensemble():
         sys.stdout.write('\n')
         sys.stdout.flush()
         tf.gfile.MakeDirs(os.path.dirname(FLAGS.save_path))
-        np.savetxt(os.path.join(FLAGS.save_path, 'submission-ensemble.csv'), pred_rows, delimiter=",", fmt='%s')
-        np.savetxt(os.path.join(FLAGS.save_path, 'logits-887849.csv'), pred_rows_a, delimiter=",", fmt='%s')
-        np.savetxt(os.path.join(FLAGS.save_path, 'logits-803207.csv'), pred_rows_b, delimiter=",", fmt='%s')
-        np.savetxt(os.path.join(FLAGS.save_path, 'logits-1583198.csv'), pred_rows_c, delimiter=",", fmt='%s')
-        np.savetxt(os.path.join(FLAGS.save_path, 'logits-1850888.csv'), pred_rows_d, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'submission-b-ensemble.csv'), pred_rows, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-b-887849.csv'), pred_rows_a, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-b-803207.csv'), pred_rows_b, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-b-1583198.csv'), pred_rows_c, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(FLAGS.save_path, 'logits-b-1850888.csv'), pred_rows_d, delimiter=",", fmt='%s')
         sys.stdout.write('[*]File submission.csv success saved.\n')
         sys.stdout.flush()
 
 
 def logits_ensemble():
-  pred_a = pd.read_csv('./fine_tune/logits-887849.csv', sep=',', header=None).values
-  pred_b = pd.read_csv('./fine_tune/logits-1850888.csv', sep=',', header=None).values
-  pred_c = pd.read_csv('./fine_tune/test_re0.csv', sep=',', header=None).values
-  pred_d = pd.read_csv('./fine_tune/test_re1.csv', sep=',', header=None).values
+  pred_a = pd.read_csv('./fine_tune/logits-b-887849.csv', sep=',', header=None).values
+  pred_b = pd.read_csv('./fine_tune/logits-b-1850888.csv', sep=',', header=None).values
+  pred_c = pd.read_csv('./fine_tune/test_b_Liao_797.csv', sep=',', header=None).values
+  pred_d = pd.read_csv('./fine_tune/test_b_Liao_807.csv', sep=',', header=None).values
+  # pred_f = pd.read_csv('./fine_tune/test_b_Liao.csv', sep=',', header=None).values
+  pred_e = np.load('./fine_tune/he794_b.npy')
   pred_rows = []
-  for i in range(4838):
-    pred_logits = pred_a[i] + pred_b[i] + pred_c[i] + pred_d[i]
+  for i in range(4835):
+    pred_logits = pred_a[i] + pred_b[i] + pred_c[i] + pred_d[i] + pred_e[i] 
     pred = np.zeros([17], np.uint8)
     pred[np.argmax(pred_logits)] = 1
     pred_rows.append(pred)
-  np.savetxt('./result/lcz/submission-29-ensemble(887849+1850888+L0+L1).csv', pred_rows, delimiter=",", fmt='%s')
+  np.savetxt('./result/submission-b-ensemble--(887849+1850888+L0+L1+H).csv', pred_rows, delimiter=",", fmt='%s')
 
+from collections import Counter
+
+def logits_ensemble_toupiao():
+  pred_a = pd.read_csv('./fine_tune/logits-b-887849.csv', sep=',', header=None).values
+  pred_b = pd.read_csv('./fine_tune/logits-b-1850888.csv', sep=',', header=None).values
+  pred_c = pd.read_csv('./fine_tune/test_b_Liao_797.csv', sep=',', header=None).values
+  pred_d = pd.read_csv('./fine_tune/test_b_Liao_807.csv', sep=',', header=None).values
+  pred_f = pd.read_csv('./fine_tune/test_b_Liao.csv', sep=',', header=None).values
+  pred_e = np.load('./fine_tune/he794_b.npy')
+  pred_rows = []
+  for i in range(4835):
+    pred_all = [np.argmax(pred_a[i]), np.argmax(pred_b[i]), np.argmax(pred_c[i]),
+                np.argmax(pred_d[i]), np.argmax(pred_e[i]), np.argmax(pred_f[i])]
+    pred_ind = Counter(pred_all).most_common()[0]
+    if pred_ind[1] == 1:
+      pred_idx = np.argmax(pred_a[i] + pred_b[i] + pred_c[i] + pred_d[i] + pred_e[i] + pred_f[i])
+    else:
+      pred_idx = pred_ind[0]
+    pred = np.zeros([17], np.uint8)
+    pred[pred_idx] = 1
+    pred_rows.append(pred)
+  np.savetxt('./result/submission-b-toupiao(887849+1850888+L0+L1+L2+H).csv', pred_rows, delimiter=",", fmt='%s')
 
 if __name__ == '__main__':
   logits_ensemble()
