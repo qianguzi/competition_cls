@@ -104,9 +104,9 @@ def build_model():
                                      is_training=True)
     logits = slim.softmax(logits)
     focal_loss_tensor = train_utils.focal_loss(labels, logits, weights=1.0)
-    f1_loss_tensor = train_utils.f1_loss(labels, logits, weights=1.0)
-    cls_loss = f1_loss_tensor
-    # cls_loss = focal_loss_tensor + 0.5 * f1_loss_tensor
+    # f1_loss_tensor = train_utils.f1_loss(labels, logits, weights=1.0)
+    # cls_loss = f1_loss_tensor
+    cls_loss = focal_loss_tensor
 
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
