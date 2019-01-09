@@ -18,7 +18,7 @@ from dataset import get_dataset
 from utils import streaming_f1_score
 from dataset.dataset_information import PROTEIN_CLASS_NAMES
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 flags = tf.app.flags
 
@@ -32,7 +32,7 @@ flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Loca
 # flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                     'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('eval_split', 'protein-02',
+flags.DEFINE_string('eval_split', 'protein-06',
                     'Which split of the dataset used for evaluation')
 flags.DEFINE_integer('eval_interval_secs', 60 * 6,
                      'How often (in seconds) to run evaluation.')
@@ -43,14 +43,14 @@ flags.DEFINE_integer('output_stride', 32,
                      'The ratio of input to output spatial resolution.')
 flags.DEFINE_boolean('use_slim', False,
                      'Whether to use slim for eval or not.')
-flags.DEFINE_integer('threshould', 9000, 'The momentum value to use')
+flags.DEFINE_integer('threshould', 100, 'The momentum value to use')
 
 FLAGS = flags.FLAGS
 
-_THRESHOULD = [0.0523, 0.0896, 0.1198, 0.0201, 0.0229, 0.2436, 0.1087, 
-               0.1688, 0.1071, 0.0007, 0.0017, 0.2636, 0.1848, 0.0272,
-               0.2158, 0.0266, 0.1287, 0.1340, 0.1657, 0.1612, 0.0345,
-               0.1000, 0.1853, 0.0921, 0.0067, 0.1324, 0.0323, 0.0132]
+_THRESHOULD = [0.00000001, 0.0968, 0.2178, 0.0131, 0.0055, 0.1866, 0.2934, 
+               0.4926, 0.1592, 0.0120, 0.3293, 0.2142, 0.2788, 0.4694,
+               0.0053, 0.1375, 0.2838, 0.4881, 0.2479, 0.0670, 0.2771,
+               0.0092, 0.3076, 0.0194, 0.2156, 0.0004, 0.3336, 0.3301]
 
 def metrics(end_points, labels):
   """Specify the metrics for eval.
@@ -122,7 +122,6 @@ def eval_model():
     # session_config = tf.ConfigProto(device_count={'GPU': 0})
     session_config = tf.ConfigProto(allow_soft_placement=True)
     session_config.gpu_options.allow_growth = True
-    session_config.gpu_options.per_process_gpu_memory_fraction = 0.2
     if FLAGS.use_slim:
       num_eval_iters = None
       if FLAGS.max_number_of_evaluations > 0:
@@ -170,8 +169,8 @@ def eval_model():
 
             predictions_image_list = []
             for thre in range(1, FLAGS.threshould, 1):
-              predictions_id = list(np.where(logits_np > (thre/10000))[0])
-              predictions_np = np.where(logits_np > (thre/10000), 1, 0)
+              predictions_id = list(np.where(logits_np > (thre/100000000))[0])
+              predictions_np = np.where(logits_np > (thre/100000000), 1, 0)
               if np.sum(predictions_np) == 0:
                 max_id = np.argmax(logits_np)
                 predictions_np[max_id] = 1

@@ -13,7 +13,7 @@ from net.mobilenet import mobilenet_v2
 #from dataset.get_lcz_dataset import get_dataset
 from dataset import get_dataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 flags = tf.app.flags
 
@@ -34,7 +34,7 @@ flags.DEFINE_string('dataset_dir', '/mnt/home/hdd/hdd1/home/junq/dataset', 'Loca
 # flags.DEFINE_string('dataset_dir', '/media/deeplearning/f3cff4c9-1ab9-47f0-8b82-231dedcbd61b/lcz/tfrecord/',
 #                     'Location of dataset.')
 flags.DEFINE_string('dataset', 'protein', 'Name of the dataset.')
-flags.DEFINE_string('train_split', 'protein-01',
+flags.DEFINE_string('train_split', 'protein-06',
                     'Which split of the dataset to be used for training')
 flags.DEFINE_integer('log_every_n_steps', 20, 'Number of steps per log')
 flags.DEFINE_integer('save_summaries_secs', 60,
@@ -103,7 +103,10 @@ def build_model():
                                      num_classes=FLAGS.num_classes,
                                      is_training=True)
     logits = slim.softmax(logits)
-    cls_loss = train_utils.focal_loss(labels, logits, weights=1.0) + train_utils.f1_loss(labels, logits, weights=0.5)
+    focal_loss_tensor = train_utils.focal_loss(labels, logits, weights=1.0)
+    f1_loss_tensor = train_utils.f1_loss(labels, logits, weights=1.0)
+    cls_loss = f1_loss_tensor
+    # cls_loss = focal_loss_tensor + 0.5 * f1_loss_tensor
 
     # Gather update_ops
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
