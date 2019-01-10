@@ -1,7 +1,7 @@
-# lcz
-tianchi
+# Competition
+lcz, protein
 
-## v1
+## lcz_v1
 resnet_v1_50_beta
 
 96*96 96 
