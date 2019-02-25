@@ -22,8 +22,9 @@ FLAGS = flags.FLAGS
 _NUM_CLASSES = 17
 _NUM_SHARDS = 10
 _PREPROCESS_METHOD = {
-    'multilabel': data_preprocess.lcz_preprocess,
-    'name': data_preprocess.lcz_preprocess, 
+    'multilabel': data_preprocess.old_preprocess,
+    'name': data_preprocess.old_preprocess, 
+    'lcz': data_preprocess.lcz_preprocess,
 }
 
 def _bytes_feature(value):
